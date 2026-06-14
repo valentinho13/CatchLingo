@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -46,9 +47,11 @@ fun CatchLingoTopBar(
     actionIcon: ImageVector? = null,
     onActionClick: () -> Unit = {},
 ) {
+    val haptics = rememberCatchLingoHaptics()
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .statusBarsPadding()
             .padding(horizontal = 24.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -68,7 +71,10 @@ fun CatchLingoTopBar(
         }
         if (actionIcon != null) {
             IconButton(
-                onClick = onActionClick,
+                onClick = {
+                    haptics.softTick()
+                    onActionClick()
+                },
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
