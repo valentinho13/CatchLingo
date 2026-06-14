@@ -19,13 +19,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.DirectionsBike
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Chair
-import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.LocalCafe
 import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Signpost
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,7 +42,6 @@ import de.valentinho13.catchlingo.designsystem.components.CatchLingoCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoChip
 import de.valentinho13.catchlingo.designsystem.components.MiniPill
 import de.valentinho13.catchlingo.designsystem.components.StaggeredEntrance
-import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -62,7 +58,6 @@ fun DictionaryScreen(
     val activeFilter = if (selectedFilter in filters) selectedFilter else "Alle"
     val visibleWords = if (activeFilter == "Alle") words else words.filter { it.isNew(nowMillis) }
     val animatedWordCount by animateIntAsState(targetValue = words.size, label = "dictionaryWordCount")
-    val haptics = rememberCatchLingoHaptics()
 
     LazyColumn(
         modifier = modifier
@@ -76,14 +71,6 @@ fun DictionaryScreen(
                 DictionarySummaryCard(
                     wordCount = animatedWordCount,
                     hasWords = words.isNotEmpty(),
-                    onSearchClick = {
-                        haptics.softTick()
-                        onFeedback("Suche wird nützlich, sobald erste Wörter gesammelt sind.")
-                    },
-                    onFilterClick = {
-                        haptics.softTick()
-                        onFeedback("Filter erscheinen, sobald es echte Wörter gibt.")
-                    },
                 )
             }
         }
@@ -122,46 +109,26 @@ fun DictionaryScreen(
 private fun DictionarySummaryCard(
     wordCount: Int,
     hasWords: Boolean,
-    onSearchClick: () -> Unit,
-    onFilterClick: () -> Unit,
 ) {
     CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (wordCount == 1) {
-                        "1 Wort gesammelt"
-                    } else {
-                        "$wordCount Wörter gesammelt"
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = if (hasWords) {
-                        "Deine Sammlung wächst mit jedem echten Fund."
-                    } else {
-                        "Deine echten Funde erscheinen hier, sobald du die Welt erkundest."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = CatchLingoColor.TextMuted,
-                )
-            }
-            if (hasWords) {
-                IconButton(onClick = onSearchClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = "Wörterbuch durchsuchen",
-                        tint = CatchLingoColor.Green,
-                    )
-                }
-                IconButton(onClick = onFilterClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.FilterList,
-                        contentDescription = "Wörterbuch filtern",
-                        tint = CatchLingoColor.TextMuted,
-                    )
-                }
-            }
+        Column {
+            Text(
+                text = if (wordCount == 1) {
+                    "1 Wort gesammelt"
+                } else {
+                    "$wordCount Wörter gesammelt"
+                },
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = if (hasWords) {
+                    "Deine Sammlung wächst mit jedem echten Fund."
+                } else {
+                    "Deine echten Funde erscheinen hier, sobald du die Welt erkundest."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = CatchLingoColor.TextMuted,
+            )
         }
     }
 }
