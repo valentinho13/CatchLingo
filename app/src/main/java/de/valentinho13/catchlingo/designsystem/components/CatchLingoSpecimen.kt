@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
+import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 
 @Composable
 fun CatchLingoSpecimenCard(
@@ -29,7 +31,9 @@ fun CatchLingoSpecimenCard(
     modifier: Modifier = Modifier,
     context: String? = null,
     status: String? = null,
+    onPronounceClick: (() -> Unit)? = null,
 ) {
+    val haptics = rememberCatchLingoHaptics()
     CatchLingoCard(
         modifier = modifier,
         contentPadding = PaddingValues(18.dp),
@@ -46,11 +50,27 @@ fun CatchLingoSpecimenCard(
                     color = CatchLingoColor.GreenSoft,
                     contentColor = CatchLingoColor.Green,
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.VolumeUp,
-                        contentDescription = null,
-                        modifier = Modifier.padding(8.dp),
-                    )
+                    if (onPronounceClick == null) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.VolumeUp,
+                            contentDescription = null,
+                            modifier = Modifier.padding(8.dp),
+                        )
+                    } else {
+                        IconButton(
+                            onClick = {
+                                haptics.softTick()
+                                onPronounceClick()
+                            },
+                            modifier = Modifier.size(34.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.VolumeUp,
+                                contentDescription = "Aussprache anhören",
+                                modifier = Modifier.padding(6.dp),
+                            )
+                        }
+                    }
                 }
             }
             if (context != null || status != null) {

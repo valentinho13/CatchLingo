@@ -2,6 +2,7 @@ package de.valentinho13.catchlingo.feature.review
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +23,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -34,20 +40,37 @@ import de.valentinho13.catchlingo.designsystem.components.CatchLingoButton
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoButtonStyle
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoHeroCard
+import de.valentinho13.catchlingo.designsystem.components.MiniPill
+import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 
 @Composable
-fun ReviewScreen(modifier: Modifier = Modifier) {
+fun ReviewScreen(
+    modifier: Modifier = Modifier,
+    onFeedback: (String) -> Unit = {},
+) {
+    var selectedMode by rememberSaveable { mutableStateOf(ReviewMode.Easy) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 8.dp),
+            .padding(horizontal = 24.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         CatchLingoHeroCard(modifier = Modifier.fillMaxWidth()) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "Easy Mode", style = MaterialTheme.typography.headlineMedium, color = CatchLingoColor.GreenDeep)
-                Text(text = "Bild hilft dir", style = MaterialTheme.typography.bodyMedium, color = CatchLingoColor.TextMuted)
+                MiniPill(
+                    text = selectedMode.title,
+                    color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.86f),
+                    contentColor = CatchLingoColor.GreenDeep,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = selectedMode.headline,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = CatchLingoColor.GreenDeep,
+                )
+                Text(text = selectedMode.subtitle, style = MaterialTheme.typography.bodyMedium, color = CatchLingoColor.TextMuted)
                 Spacer(modifier = Modifier.height(14.dp))
                 Box(contentAlignment = Alignment.BottomEnd) {
                     Box(
@@ -68,18 +91,36 @@ fun ReviewScreen(modifier: Modifier = Modifier) {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Sieh das Bild und erinnere dich an das Wort.",
+                    text = selectedMode.helperText,
                     style = MaterialTheme.typography.bodyMedium,
                     color = CatchLingoColor.TextPrimary,
                 )
                 Spacer(modifier = Modifier.height(18.dp))
-                CatchLingoButton(text = "Starten", onClick = {}, modifier = Modifier.fillMaxWidth())
+                CatchLingoButton(
+                    text = "Starten",
+                    onClick = {
+                        onFeedback("${selectedMode.title} ist bereit, sobald deine ersten echten Funde gespeichert sind.")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ModeCard("Easy", "Mit Bild", Icons.Outlined.Image, Modifier.weight(1f))
-            ModeCard("Hard", "Nur das Wort", Icons.Outlined.QuestionMark, Modifier.weight(1f))
+            ModeCard(
+                mode = ReviewMode.Easy,
+                selected = selectedMode == ReviewMode.Easy,
+                icon = Icons.Outlined.Image,
+                onClick = { selectedMode = ReviewMode.Easy },
+                modifier = Modifier.weight(1f),
+            )
+            ModeCard(
+                mode = ReviewMode.Hard,
+                selected = selectedMode == ReviewMode.Hard,
+                icon = Icons.Outlined.QuestionMark,
+                onClick = { selectedMode = ReviewMode.Hard },
+                modifier = Modifier.weight(1f),
+            )
         }
 
         CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
@@ -93,7 +134,9 @@ fun ReviewScreen(modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(14.dp))
             CatchLingoButton(
                 text = "Später erinnern",
-                onClick = {},
+                onClick = {
+                    onFeedback("Alles gut. CatchLingo erinnert dich später sanft daran.")
+                },
                 style = CatchLingoButtonStyle.Quiet,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -103,17 +146,63 @@ fun ReviewScreen(modifier: Modifier = Modifier) {
 
 @Composable
 private fun ModeCard(
-    title: String,
-    subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    mode: ReviewMode,
+    selected: Boolean,
+    icon: ImageVector,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    CatchLingoCard(modifier = modifier, elevated = false) {
+    val haptics = rememberCatchLingoHaptics()
+    CatchLingoCard(
+        modifier = modifier.clickable {
+            haptics.softTick()
+            onClick()
+        },
+        elevated = selected,
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(imageVector = icon, contentDescription = null, tint = CatchLingoColor.Amber)
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (selected) CatchLingoColor.Green else CatchLingoColor.Amber,
+            )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = title, style = MaterialTheme.typography.titleMedium)
-            Text(text = subtitle, style = MaterialTheme.typography.labelMedium, color = CatchLingoColor.TextMuted)
+            Text(text = mode.shortTitle, style = MaterialTheme.typography.titleMedium)
+            Text(text = mode.shortSubtitle, style = MaterialTheme.typography.labelMedium, color = CatchLingoColor.TextMuted)
+            if (selected) {
+                Spacer(modifier = Modifier.height(10.dp))
+                MiniPill(
+                    text = "aktiv",
+                    color = CatchLingoColor.GreenSoft,
+                    contentColor = CatchLingoColor.GreenDeep,
+                )
+            }
         }
     }
+}
+
+private enum class ReviewMode(
+    val title: String,
+    val headline: String,
+    val subtitle: String,
+    val helperText: String,
+    val shortTitle: String,
+    val shortSubtitle: String,
+) {
+    Easy(
+        title = "Easy Mode",
+        headline = "Bild hilft dir",
+        subtitle = "Mit visueller Erinnerung",
+        helperText = "Sieh das Bild und erinnere dich entspannt an das Wort.",
+        shortTitle = "Easy",
+        shortSubtitle = "Mit Bild",
+    ),
+    Hard(
+        title = "Hard Mode",
+        headline = "Nur das Wort",
+        subtitle = "Ruhig, ohne Zusatzhilfe",
+        helperText = "Nimm dir einen Moment und prüfe, ob das Wort schon vertraut ist.",
+        shortTitle = "Hard",
+        shortSubtitle = "Nur Wort",
+    ),
 }

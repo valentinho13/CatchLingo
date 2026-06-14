@@ -78,6 +78,7 @@ fun DiscoverScreen(
     exploreState: DiscoverUiState = PreviewDiscoverState,
     onStartExplore: () -> Unit = {},
     onLeaveExplore: () -> Unit = {},
+    onFeedback: (String) -> Unit = {},
 ) {
     if (exploreFullScreen) {
         ExploreScreen(
@@ -89,6 +90,7 @@ fun DiscoverScreen(
         HomeScreen(
             state = state,
             onStartExplore = onStartExplore,
+            onFeedback = onFeedback,
             modifier = modifier,
         )
     }
@@ -98,6 +100,7 @@ fun DiscoverScreen(
 private fun HomeScreen(
     state: DiscoverUiState,
     onStartExplore: () -> Unit,
+    onFeedback: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -105,7 +108,7 @@ private fun HomeScreen(
             .fillMaxSize()
             .background(CatchLingoColor.Canvas),
         state = rememberLazyListState(),
-        contentPadding = PaddingValues(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 112.dp),
+        contentPadding = PaddingValues(start = 24.dp, top = 18.dp, end = 24.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
@@ -115,7 +118,11 @@ private fun HomeScreen(
             FirstFindCard()
         }
         item {
-            WarmPreviewCard()
+            WarmPreviewCard(
+                onPronounceClick = {
+                    onFeedback("Aussprache kommt bald als sanfte Hörprobe dazu.")
+                },
+            )
         }
     }
 }
@@ -187,7 +194,7 @@ private fun FirstFindCard() {
 }
 
 @Composable
-private fun WarmPreviewCard() {
+private fun WarmPreviewCard(onPronounceClick: () -> Unit) {
     CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
         Text(text = "So fühlt sich ein Fund an", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(12.dp))
@@ -196,6 +203,7 @@ private fun WarmPreviewCard() {
             source = "coffee",
             context = "Café",
             status = "Beispielfund",
+            onPronounceClick = onPronounceClick,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -212,7 +220,7 @@ private fun ExploreScreen(
             .fillMaxSize()
             .background(CatchLingoColor.Canvas),
     ) {
-        SunnyCameraScene(
+        DiscoveryPreviewScene(
             state = state,
             modifier = Modifier.fillMaxSize(),
         )
@@ -239,7 +247,7 @@ private fun ExploreChrome(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MiniPill(
-                text = "Automatisch sammeln",
+                text = "Entdeckungsvorschau",
                 color = CatchLingoColor.GreenDeep.copy(alpha = 0.72f),
                 contentColor = CatchLingoColor.WarmSurfaceRaised,
             )
@@ -272,7 +280,7 @@ private fun ExploreChrome(
                 CatchOrb(words = state.wordsToday)
                 Spacer(modifier = Modifier.weight(1f))
                 MiniPill(
-                    text = "schau dich um...",
+                    text = "automatisch sammeln",
                     color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.86f),
                     contentColor = CatchLingoColor.TextMuted,
                 )
@@ -308,7 +316,7 @@ private fun FloatingCompanion() {
 }
 
 @Composable
-private fun SunnyCameraScene(
+private fun DiscoveryPreviewScene(
     state: DiscoverUiState,
     modifier: Modifier = Modifier,
 ) {

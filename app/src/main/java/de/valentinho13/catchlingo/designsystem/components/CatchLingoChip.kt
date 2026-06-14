@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.CatchLingoMotion
 import de.valentinho13.catchlingo.designsystem.catchLingo
+import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 
 @Composable
 fun CatchLingoChip(
@@ -31,6 +32,7 @@ fun CatchLingoChip(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
 ) {
+    val haptics = rememberCatchLingoHaptics()
     val container by animateColorAsState(
         targetValue = if (selected) CatchLingoColor.Green else CatchLingoColor.WarmSurfaceRaised,
         animationSpec = tween(CatchLingoMotion.Chip, easing = CatchLingoMotion.EaseOutSoft),
@@ -44,7 +46,10 @@ fun CatchLingoChip(
 
     FilterChip(
         selected = selected,
-        onClick = onClick,
+        onClick = {
+            haptics.softTick()
+            onClick()
+        },
         modifier = modifier.heightIn(min = 38.dp),
         shape = RoundedCornerShape(MaterialTheme.catchLingo.radii.chip),
         border = BorderStroke(1.dp, if (selected) CatchLingoColor.Green else CatchLingoColor.Hairline),
