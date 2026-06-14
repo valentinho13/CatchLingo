@@ -50,9 +50,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -293,10 +291,10 @@ private fun ExploreChrome(
                 overflow = TextOverflow.Ellipsis,
             )
             Row(verticalAlignment = Alignment.Bottom) {
-                CatchOrb(words = state.wordsToday)
+                CatchOrb()
                 Spacer(modifier = Modifier.weight(1f))
                 MiniPill(
-                    text = "automatisch sammeln",
+                    text = "Automatisch sammeln",
                     color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.86f),
                     contentColor = CatchLingoColor.TextMuted,
                 )
@@ -356,16 +354,31 @@ private fun DiscoveryPreviewScene(
             drawMagnetTrails(words = state.noticedWords, phase = trailPhase)
         }
 
-        state.noticedWords.forEachIndexed { index, word ->
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn(tween(420 + index * 90)) + scaleIn(initialScale = 0.92f),
-            ) {
-                SceneWordChip(word = word, index = index)
-            }
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(tween(420)) + scaleIn(initialScale = 0.94f),
+        ) {
+            SceneWordChip(word = state.noticedWords.firstOrNull() ?: PreviewExampleWord)
         }
+
+        Text(
+            text = "Bald: Richte dein Handy auf die Welt — entdeckte Wörter werden sanft eingesammelt.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.86f),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 22.dp, vertical = 168.dp),
+            textAlign = TextAlign.Center,
+        )
     }
 }
+
+private val PreviewExampleWord = NoticedWord(
+    word = "kopi",
+    source = "coffee",
+    x = 0.50f,
+    y = 0.58f,
+)
 
 @Composable
 private fun BoxWithConstraintsScope.SceneWordPosition(
@@ -388,41 +401,26 @@ private fun BoxWithConstraintsScope.SceneWordPosition(
 }
 
 @Composable
-private fun BoxWithConstraintsScope.SceneWordChip(word: NoticedWord, index: Int) {
-    val transition = rememberInfiniteTransition(label = "wordChip$index")
-    val breathe by transition.animateFloat(
-        initialValue = 0.98f,
-        targetValue = 1.04f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800 + index * 160, easing = CatchLingoMotion.EaseInOutWarm),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "wordBreathe$index",
-    )
-
+private fun BoxWithConstraintsScope.SceneWordChip(word: NoticedWord) {
+    val haptics = rememberCatchLingoHaptics()
     SceneWordPosition(word = word) {
-        CatchLingoCard(
-            elevated = false,
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-            modifier = Modifier.graphicsLayer {
-                scaleX = breathe
-                scaleY = breathe
-            },
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = word.word, style = MaterialTheme.typography.titleMedium, color = CatchLingoColor.TextPrimary)
-                Text(text = word.source, style = MaterialTheme.typography.labelMedium, color = CatchLingoColor.TextMuted)
-            }
-        }
+        CatchLingoSpecimenCard(
+            word = word.word,
+            source = word.source,
+            context = "Café",
+            status = "Beispielfund",
+            onPronounceClick = { haptics.softTick() },
+            modifier = Modifier.fillMaxWidth(0.66f),
+        )
     }
 }
 
 @Composable
-private fun CatchOrb(words: Int, modifier: Modifier = Modifier) {
+private fun CatchOrb(modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition(label = "catchOrb")
     val pulse by transition.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.04f,
+        initialValue = 0.96f,
+        targetValue = 1.03f,
         animationSpec = infiniteRepeatable(
             animation = tween(1800, easing = CatchLingoMotion.EaseInOutWarm),
             repeatMode = RepeatMode.Reverse,
@@ -431,7 +429,7 @@ private fun CatchOrb(words: Int, modifier: Modifier = Modifier) {
     )
     Box(
         modifier = modifier
-            .size(124.dp)
+            .size(104.dp)
             .graphicsLayer {
                 scaleX = pulse
                 scaleY = pulse
@@ -440,8 +438,9 @@ private fun CatchOrb(words: Int, modifier: Modifier = Modifier) {
             .background(
                 Brush.radialGradient(
                     listOf(
-                        CatchLingoColor.WarmSurfaceRaised,
-                        CatchLingoColor.AmberSoft.copy(alpha = 0.9f),
+                        CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.92f),
+                        CatchLingoColor.AmberSoft.copy(alpha = 0.82f),
+                        CatchLingoColor.Amber.copy(alpha = 0.24f),
                     ),
                 ),
             ),
@@ -449,9 +448,8 @@ private fun CatchOrb(words: Int, modifier: Modifier = Modifier) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(imageVector = Icons.Outlined.AutoAwesome, contentDescription = null, tint = CatchLingoColor.Amber)
-            Text(text = words.toString(), style = MaterialTheme.typography.headlineLarge, color = CatchLingoColor.Green)
             Text(
-                text = "Wörter",
+                text = "Vorschau",
                 style = MaterialTheme.typography.labelMedium,
                 color = CatchLingoColor.TextMuted,
                 textAlign = TextAlign.Center,
@@ -584,35 +582,20 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMagnetTrails(
     phase: Float,
 ) {
     val target = Offset(size.width * 0.5f, size.height * 0.78f)
-    words.forEachIndexed { index, word ->
-        val start = Offset(size.width * word.x, size.height * word.y)
-        val control = Offset(
-            x = (start.x + target.x) / 2f,
-            y = (start.y + target.y) / 2f - size.height * (0.12f + index * 0.015f),
+    val moteCount = words.size.coerceIn(4, 7)
+    repeat(moteCount) { index ->
+        val angle = index * 0.92f
+        val progress = ((phase + index * 0.13f) % 1f)
+        val radiusX = size.width * (0.36f - progress * 0.24f)
+        val radiusY = size.height * (0.30f - progress * 0.19f)
+        val dot = Offset(
+            x = target.x + kotlin.math.cos(angle) * radiusX,
+            y = target.y + kotlin.math.sin(angle) * radiusY,
         )
-        val path = Path().apply {
-            moveTo(start.x, start.y)
-            quadraticTo(control.x, control.y, target.x, target.y)
-        }
-        drawPath(
-            path = path,
-            color = CatchLingoColor.Leaf.copy(alpha = 0.34f),
-            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round),
-        )
-        val dotProgress = ((phase + index * 0.17f) % 1f)
-        val dot = quadraticPoint(start, control, target, dotProgress)
         drawCircle(
-            color = CatchLingoColor.AmberSoft.copy(alpha = 0.78f),
-            radius = 3.2.dp.toPx(),
+            color = CatchLingoColor.AmberSoft.copy(alpha = 0.22f + progress * 0.28f),
+            radius = (2.6f + progress * 2.2f).dp.toPx(),
             center = dot,
         )
     }
-}
-
-private fun quadraticPoint(start: Offset, control: Offset, end: Offset, t: Float): Offset {
-    val oneMinus = 1f - t
-    return Offset(
-        x = oneMinus * oneMinus * start.x + 2f * oneMinus * t * control.x + t * t * end.x,
-        y = oneMinus * oneMinus * start.y + 2f * oneMinus * t * control.y + t * t * end.y,
-    )
 }
