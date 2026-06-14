@@ -105,6 +105,7 @@ import de.valentinho13.catchlingo.designsystem.components.CatchLingoSpecimenCard
 import de.valentinho13.catchlingo.designsystem.components.MiniPill
 import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 import java.util.concurrent.Executors
+import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlinx.coroutines.delay
@@ -664,33 +665,65 @@ private fun MagnetSuctionLayer(
     Canvas(
         modifier = modifier.alpha(if (visible) 1f else 0f),
     ) {
-        val target = Offset(size.width * 0.50f, size.height * 0.48f)
+        val targetX = size.width * 0.50f
+        val targetY = size.height * 0.48f
         val p = progress.value
-        repeat(9) { index ->
-            val angle = index * 0.72f
-            val startRadiusX = size.width * (0.34f + (index % 3) * 0.04f)
-            val startRadiusY = size.height * (0.25f + (index % 2) * 0.04f)
-            val start = Offset(
-                x = target.x + kotlin.math.cos(angle) * startRadiusX,
-                y = target.y + sin(angle) * startRadiusY,
-            )
-            val drift = Offset(
-                x = start.x + (target.x - start.x) * p,
-                y = start.y + (target.y - start.y) * p,
-            )
+        val fade = sin(p * Math.PI).toFloat().coerceIn(0f, 1f)
+
+        repeat(MagnetMoteCount) { index ->
+            val startX = size.width * MagnetMoteStarts[index * 2]
+            val startY = size.height * MagnetMoteStarts[index * 2 + 1]
+            val curve = MagnetMoteCurves[index]
+            val controlX = (startX + targetX) * 0.5f + size.width * curve
+            val controlY = (startY + targetY) * 0.5f - size.height * (0.08f + (index % 3) * 0.018f)
+            val oneMinus = 1f - p
+            val driftX = oneMinus * oneMinus * startX + 2f * oneMinus * p * controlX + p * p * targetX
+            val driftY = oneMinus * oneMinus * startY + 2f * oneMinus * p * controlY + p * p * targetY
             drawCircle(
-                color = CatchLingoColor.AmberSoft.copy(alpha = (1f - p) * 0.48f),
-                radius = (3.2f + p * 4.8f).dp.toPx(),
-                center = drift,
+                color = CatchLingoColor.AmberSoft.copy(alpha = fade * 0.52f),
+                radius = (2.6f + p * 3.6f).dp.toPx(),
+                center = Offset(driftX, driftY),
             )
         }
         drawCircle(
-            color = CatchLingoColor.AmberSoft.copy(alpha = (1f - p) * 0.18f),
-            radius = (80f + p * 34f).dp.toPx(),
-            center = target,
+            color = CatchLingoColor.AmberSoft.copy(alpha = p * 0.20f),
+            radius = (42f + p * 44f).dp.toPx(),
+            center = Offset(targetX, targetY),
         )
     }
 }
+
+private const val MagnetMoteCount = 12
+
+private val MagnetMoteStarts = floatArrayOf(
+    0.08f, 0.30f,
+    0.18f, 0.18f,
+    0.36f, 0.12f,
+    0.68f, 0.14f,
+    0.88f, 0.28f,
+    0.94f, 0.52f,
+    0.82f, 0.72f,
+    0.64f, 0.84f,
+    0.40f, 0.86f,
+    0.16f, 0.74f,
+    0.06f, 0.54f,
+    0.28f, 0.42f,
+)
+
+private val MagnetMoteCurves = floatArrayOf(
+    0.05f,
+    -0.04f,
+    0.06f,
+    -0.05f,
+    -0.08f,
+    0.04f,
+    -0.03f,
+    0.07f,
+    -0.06f,
+    0.05f,
+    -0.04f,
+    0.03f,
+)
 
 @Composable
 private fun CatchConfirmationCard(
