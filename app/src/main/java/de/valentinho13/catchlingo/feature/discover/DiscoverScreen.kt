@@ -1,7 +1,13 @@
 package de.valentinho13.catchlingo.feature.discover
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.view.ViewGroup
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -42,7 +48,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +64,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -60,6 +72,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.Observer
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import de.valentinho13.catchlingo.R
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.CatchLingoMotion
@@ -226,17 +248,86 @@ private fun ExploreScreen(
     onLeaveExplore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    var permissionDenied by remember { mutableStateOf(false) }
+    var cameraStreaming by remember { mutableStateOf(false) }
+    val cameraPlaceholderAlpha by animateFloatAsState(
+        targetValue = if (hasCameraPermission && cameraStreaming) 0f else 1f,
+        animationSpec = tween(300, easing = CatchLingoMotion.EaseInOutWarm),
+        label = "cameraPlaceholderAlpha",
+    )
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        hasCameraPermission = granted
+        permissionDenied = !granted
+        cameraStreaming = false
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val granted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.CAMERA,
+                ) == PackageManager.PERMISSION_GRANTED
+                hasCameraPermission = granted
+                if (granted) {
+                    permissionDenied = false
+                    cameraStreaming = false
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(CatchLingoColor.Canvas),
     ) {
+        if (hasCameraPermission) {
+            CameraXPreviewLayer(
+                onStreamStateChanged = { streaming ->
+                    cameraStreaming = streaming
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         DiscoveryPreviewScene(
             state = state,
-            modifier = Modifier.fillMaxSize(),
+            showPreviewSpecimen = !cameraStreaming,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = cameraPlaceholderAlpha },
         )
+        WarmCameraGradeOverlay(modifier = Modifier.fillMaxSize())
+        if (permissionDenied) {
+            PermissionDeniedMessage(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 26.dp),
+            )
+        }
         ExploreChrome(
             state = state,
+            cameraStreaming = cameraStreaming,
+            permissionDenied = permissionDenied,
             onLeaveExplore = onLeaveExplore,
             modifier = Modifier.fillMaxSize(),
         )
@@ -244,8 +335,112 @@ private fun ExploreScreen(
 }
 
 @Composable
+private fun CameraXPreviewLayer(
+    onStreamStateChanged: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val previewView = remember {
+        PreviewView(context).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+            implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+        }
+    }
+
+    AndroidView(
+        factory = { previewView },
+        modifier = modifier,
+    )
+
+    DisposableEffect(context, lifecycleOwner, previewView) {
+        onStreamStateChanged(false)
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        val streamObserver = Observer<PreviewView.StreamState> { streamState ->
+            onStreamStateChanged(streamState == PreviewView.StreamState.STREAMING)
+        }
+        previewView.previewStreamState.observe(lifecycleOwner, streamObserver)
+        cameraProviderFuture.addListener(
+            {
+                val cameraProvider = cameraProviderFuture.get()
+                val preview = Preview.Builder().build().also { cameraPreview ->
+                    cameraPreview.setSurfaceProvider(previewView.surfaceProvider)
+                }
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    CameraSelector.DEFAULT_BACK_CAMERA,
+                    preview,
+                )
+            },
+            ContextCompat.getMainExecutor(context),
+        )
+        onDispose {
+            previewView.previewStreamState.removeObserver(streamObserver)
+            onStreamStateChanged(false)
+            if (cameraProviderFuture.isDone) {
+                runCatching {
+                    cameraProviderFuture.get().unbindAll()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WarmCameraGradeOverlay(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    CatchLingoColor.AmberSoft.copy(alpha = 0.16f),
+                    Color.Transparent,
+                    CatchLingoColor.TextPrimary.copy(alpha = 0.30f),
+                ),
+            ),
+        )
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    CatchLingoColor.TextPrimary.copy(alpha = 0.18f),
+                ),
+                center = Offset(size.width * 0.5f, size.height * 0.52f),
+                radius = size.width * 0.74f,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun PermissionDeniedMessage(modifier: Modifier = Modifier) {
+    CatchLingoCard(
+        modifier = modifier.fillMaxWidth(),
+        elevated = false,
+    ) {
+        Text(
+            text = "Kamera-Zugriff fehlt",
+            style = MaterialTheme.typography.titleMedium,
+            color = CatchLingoColor.TextPrimary,
+        )
+        Text(
+            text = "Du kannst die warme Vorschau ansehen. Erlaube die Kamera in den Android-Einstellungen, wenn du die echte Welt live entdecken mÃ¶chtest.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = CatchLingoColor.TextMuted,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+@Composable
 private fun ExploreChrome(
     state: DiscoverUiState,
+    cameraStreaming: Boolean,
+    permissionDenied: Boolean,
     onLeaveExplore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -259,7 +454,7 @@ private fun ExploreChrome(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MiniPill(
-                text = "Entdeckungsvorschau",
+                text = if (cameraStreaming) "Live-Vorschau" else "Entdeckungsvorschau",
                 color = CatchLingoColor.GreenDeep.copy(alpha = 0.72f),
                 contentColor = CatchLingoColor.WarmSurfaceRaised,
             )
@@ -284,17 +479,25 @@ private fun ExploreChrome(
 
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(
-                text = state.sceneTitle,
-                style = MaterialTheme.typography.labelMedium,
+                text = when {
+                    cameraStreaming -> "Worterkennung kommt bald."
+                    permissionDenied -> "Kamera-Zugriff fehlt. Die Vorschau bleibt fÃ¼r dich sichtbar."
+                    else -> state.sceneTitle
+                },
+                style = if (cameraStreaming || permissionDenied) {
+                    MaterialTheme.typography.bodyMedium
+                } else {
+                    MaterialTheme.typography.labelMedium
+                },
                 color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.82f),
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Row(verticalAlignment = Alignment.Bottom) {
-                CatchOrb()
+                CatchOrb(cameraStreaming = cameraStreaming)
                 Spacer(modifier = Modifier.weight(1f))
                 MiniPill(
-                    text = "Automatisch sammeln",
+                    text = if (cameraStreaming) "Bald automatisch sammeln" else "Automatisch sammeln",
                     color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.86f),
                     contentColor = CatchLingoColor.TextMuted,
                 )
@@ -332,6 +535,7 @@ private fun FloatingCompanion(size: Dp = 148.dp) {
 @Composable
 private fun DiscoveryPreviewScene(
     state: DiscoverUiState,
+    showPreviewSpecimen: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val transition = rememberInfiniteTransition(label = "exploreScene")
@@ -354,7 +558,8 @@ private fun DiscoveryPreviewScene(
             drawMagnetTrails(words = state.noticedWords, phase = trailPhase)
         }
 
-        AnimatedVisibility(
+        if (showPreviewSpecimen) {
+            AnimatedVisibility(
             visible = true,
             enter = fadeIn(tween(420)) + scaleIn(initialScale = 0.94f),
         ) {
@@ -370,6 +575,7 @@ private fun DiscoveryPreviewScene(
                 .padding(horizontal = 22.dp, vertical = 168.dp),
             textAlign = TextAlign.Center,
         )
+        }
     }
 }
 
@@ -416,7 +622,10 @@ private fun BoxWithConstraintsScope.SceneWordChip(word: NoticedWord) {
 }
 
 @Composable
-private fun CatchOrb(modifier: Modifier = Modifier) {
+private fun CatchOrb(
+    cameraStreaming: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val transition = rememberInfiniteTransition(label = "catchOrb")
     val pulse by transition.animateFloat(
         initialValue = 0.96f,
@@ -449,7 +658,7 @@ private fun CatchOrb(modifier: Modifier = Modifier) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(imageVector = Icons.Outlined.AutoAwesome, contentDescription = null, tint = CatchLingoColor.Amber)
             Text(
-                text = "Vorschau",
+                text = if (cameraStreaming) "Bereit" else "Vorschau",
                 style = MaterialTheme.typography.labelMedium,
                 color = CatchLingoColor.TextMuted,
                 textAlign = TextAlign.Center,
