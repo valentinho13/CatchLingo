@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,9 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.DirectionsBike
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
@@ -45,6 +46,7 @@ import de.valentinho13.catchlingo.designsystem.components.CatchLingoChip
 import de.valentinho13.catchlingo.designsystem.components.MiniPill
 import de.valentinho13.catchlingo.designsystem.components.StaggeredEntrance
 import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
+import java.util.concurrent.TimeUnit
 
 @Composable
 fun DictionaryScreen(
@@ -52,91 +54,112 @@ fun DictionaryScreen(
     words: List<DiscoveredWord> = emptyList(),
     onFeedback: (String) -> Unit = {},
 ) {
-    val filters = listOf("Alle", "Neu", "Lerne", "Bekannt")
+    val nowMillis = System.currentTimeMillis()
+    val filters = listOf("Alle", "Neu").filter { filter ->
+        filter == "Alle" || words.any { it.isNew(nowMillis) }
+    }
     var selectedFilter by rememberSaveable { mutableStateOf("Alle") }
-    val visibleWords = if (selectedFilter == "Alle") words else words.filter { it.dictionaryState() == selectedFilter }
+    val activeFilter = if (selectedFilter in filters) selectedFilter else "Alle"
+    val visibleWords = if (activeFilter == "Alle") words else words.filter { it.isNew(nowMillis) }
     val animatedWordCount by animateIntAsState(targetValue = words.size, label = "dictionaryWordCount")
     val haptics = rememberCatchLingoHaptics()
 
-    Column(
+    LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 18.dp),
+            .padding(horizontal = 24.dp),
+        contentPadding = PaddingValues(vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        StaggeredEntrance(index = 0) {
-            CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (animatedWordCount == 1) {
-                                "1 Wort gesammelt"
-                            } else {
-                                "$animatedWordCount Wörter gesammelt"
-                            },
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = if (words.isEmpty()) {
-                                "Deine echten Funde erscheinen hier, sobald du die Welt erkundest."
-                            } else {
-                                "Deine Sammlung wächst mit jedem echten Fund."
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = CatchLingoColor.TextMuted,
-                        )
-                    }
-                    if (words.isNotEmpty()) {
-                    IconButton(
-                        onClick = {
-                            haptics.softTick()
-                            onFeedback("Suche wird nützlich, sobald erste Wörter gesammelt sind.")
-                        },
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Search,
-                            contentDescription = "Wörterbuch durchsuchen",
-                            tint = CatchLingoColor.Green,
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                            haptics.softTick()
-                            onFeedback("Filter erscheinen, sobald es echte Wörter gibt.")
-                        },
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.FilterList,
-                            contentDescription = "Wörterbuch filtern",
-                            tint = CatchLingoColor.TextMuted,
-                        )
-                    }
-                    }
-                }
+        item {
+            StaggeredEntrance(index = 0) {
+                DictionarySummaryCard(
+                    wordCount = animatedWordCount,
+                    hasWords = words.isNotEmpty(),
+                    onSearchClick = {
+                        haptics.softTick()
+                        onFeedback("Suche wird nützlich, sobald erste Wörter gesammelt sind.")
+                    },
+                    onFilterClick = {
+                        haptics.softTick()
+                        onFeedback("Filter erscheinen, sobald es echte Wörter gibt.")
+                    },
+                )
             }
         }
 
         if (words.isEmpty()) {
-            StaggeredEntrance(index = 1) {
-                DictionaryEmptyState()
+            item {
+                StaggeredEntrance(index = 1) {
+                    DictionaryEmptyState()
+                }
             }
         } else {
-            StaggeredEntrance(index = 1) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    filters.forEach { filter ->
-                        CatchLingoChip(
-                            text = filter,
-                            selected = selectedFilter == filter,
-                            onClick = { selectedFilter = filter },
-                        )
+            item {
+                StaggeredEntrance(index = 1) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        filters.forEach { filter ->
+                            CatchLingoChip(
+                                text = filter,
+                                selected = activeFilter == filter,
+                                onClick = { selectedFilter = filter },
+                            )
+                        }
                     }
                 }
             }
 
-            visibleWords.forEachIndexed { index, word ->
+            itemsIndexed(visibleWords, key = { _, word -> word.id }) { index, word ->
                 StaggeredEntrance(index = index + 2) {
-                    DictionaryRow(word = word)
+                    DictionaryRow(word = word, nowMillis = nowMillis)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DictionarySummaryCard(
+    wordCount: Int,
+    hasWords: Boolean,
+    onSearchClick: () -> Unit,
+    onFilterClick: () -> Unit,
+) {
+    CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (wordCount == 1) {
+                        "1 Wort gesammelt"
+                    } else {
+                        "$wordCount Wörter gesammelt"
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = if (hasWords) {
+                        "Deine Sammlung wächst mit jedem echten Fund."
+                    } else {
+                        "Deine echten Funde erscheinen hier, sobald du die Welt erkundest."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = CatchLingoColor.TextMuted,
+                )
+            }
+            if (hasWords) {
+                IconButton(onClick = onSearchClick) {
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = "Wörterbuch durchsuchen",
+                        tint = CatchLingoColor.Green,
+                    )
+                }
+                IconButton(onClick = onFilterClick) {
+                    Icon(
+                        imageVector = Icons.Outlined.FilterList,
+                        contentDescription = "Wörterbuch filtern",
+                        tint = CatchLingoColor.TextMuted,
+                    )
                 }
             }
         }
@@ -176,7 +199,7 @@ private fun DictionaryEmptyState() {
 }
 
 @Composable
-private fun DictionaryRow(word: DiscoveredWord) {
+private fun DictionaryRow(word: DiscoveredWord, nowMillis: Long) {
     CatchLingoCard(modifier = Modifier.fillMaxWidth(), elevated = false) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             CategoryIllustration(visual = word.visual())
@@ -189,13 +212,20 @@ private fun DictionaryRow(word: DiscoveredWord) {
                 Text(text = word.source, style = MaterialTheme.typography.bodyMedium, color = CatchLingoColor.TextMuted)
                 Spacer(modifier = Modifier.height(5.dp))
                 Text(text = word.category, style = MaterialTheme.typography.labelMedium, color = CatchLingoColor.Green)
+                Text(
+                    text = word.relativeCatchTime(nowMillis),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = CatchLingoColor.TextMuted,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
             }
-            val state = word.dictionaryState()
-            MiniPill(
-                text = state,
-                color = if (state == "Neu") CatchLingoColor.AmberSoft else CatchLingoColor.GreenSoft,
-                contentColor = if (state == "Neu") CatchLingoColor.AmberDeep else CatchLingoColor.GreenDeep,
-            )
+            if (word.isNew(nowMillis)) {
+                MiniPill(
+                    text = "Neu",
+                    color = CatchLingoColor.AmberSoft,
+                    contentColor = CatchLingoColor.AmberDeep,
+                )
+            }
         }
     }
 }
@@ -219,8 +249,8 @@ private fun CategoryIllustration(visual: CategoryVisual) {
     }
 }
 
-private fun DiscoveredWord.visual(): CategoryVisual = when {
-    id == "ponsel" -> CategoryVisual(
+private fun DiscoveredWord.visual(): CategoryVisual = when (id) {
+    "ponsel" -> CategoryVisual(
         icon = Icons.Outlined.PhoneAndroid,
         background = CatchLingoColor.GreenSoft,
         tint = CatchLingoColor.Green,
@@ -261,4 +291,17 @@ private data class CategoryVisual(
     val tint: Color,
 )
 
-private fun DiscoveredWord.dictionaryState(): String = "Neu"
+private fun DiscoveredWord.isNew(nowMillis: Long): Boolean =
+    nowMillis - discoveredAtMillis < NewWindowMillis
+
+private fun DiscoveredWord.relativeCatchTime(nowMillis: Long): String {
+    val ageMillis = (nowMillis - discoveredAtMillis).coerceAtLeast(0L)
+    val days = TimeUnit.MILLISECONDS.toDays(ageMillis).toInt()
+    return when (days) {
+        0 -> "heute gefangen"
+        1 -> "gestern gefangen"
+        else -> "vor $days Tagen gefangen"
+    }
+}
+
+private const val NewWindowMillis = 24L * 60L * 60L * 1000L
