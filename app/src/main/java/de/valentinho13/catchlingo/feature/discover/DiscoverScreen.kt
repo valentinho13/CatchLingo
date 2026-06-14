@@ -6,6 +6,8 @@ import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
@@ -59,6 +61,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -103,6 +106,7 @@ import de.valentinho13.catchlingo.designsystem.components.MiniPill
 import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlinx.coroutines.delay
 
 @Composable
@@ -274,6 +278,7 @@ private fun ExploreScreen(
     var permissionDenied by remember { mutableStateOf(false) }
     var cameraStreaming by remember { mutableStateOf(false) }
     var mlUnavailable by remember { mutableStateOf(false) }
+    var magnetWord by remember { mutableStateOf<DiscoveredWord?>(null) }
     var caughtWord by remember { mutableStateOf<DiscoveredWord?>(null) }
     var catchVersion by remember { mutableIntStateOf(0) }
     val cameraPlaceholderAlpha by animateFloatAsState(
@@ -316,8 +321,13 @@ private fun ExploreScreen(
     }
 
     LaunchedEffect(catchVersion) {
-        if (caughtWord != null) {
-            delay(2_400)
+        val word = magnetWord
+        if (word != null) {
+            caughtWord = null
+            delay(680)
+            caughtWord = word
+            delay(2_500)
+            magnetWord = null
             caughtWord = null
         }
     }
@@ -339,7 +349,8 @@ private fun ExploreScreen(
                     mlUnavailable = false
                     if (onWordCollected(word)) {
                         haptics.softTick()
-                        caughtWord = word
+                        magnetWord = word
+                        caughtWord = null
                         catchVersion += 1
                     }
                 },
@@ -359,6 +370,13 @@ private fun ExploreScreen(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .padding(horizontal = 26.dp),
+            )
+        }
+        magnetWord?.let {
+            MagnetSuctionLayer(
+                trigger = catchVersion,
+                visible = caughtWord == null,
+                modifier = Modifier.fillMaxSize(),
             )
         }
         AnimatedVisibility(
@@ -628,6 +646,53 @@ private fun PermissionDeniedMessage(modifier: Modifier = Modifier) {
 }
 
 @Composable
+private fun MagnetSuctionLayer(
+    trigger: Int,
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val progress = remember { Animatable(0f) }
+
+    LaunchedEffect(trigger) {
+        progress.snapTo(0f)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(640, easing = EaseOutCubic),
+        )
+    }
+
+    Canvas(
+        modifier = modifier.alpha(if (visible) 1f else 0f),
+    ) {
+        val target = Offset(size.width * 0.50f, size.height * 0.48f)
+        val p = progress.value
+        repeat(9) { index ->
+            val angle = index * 0.72f
+            val startRadiusX = size.width * (0.34f + (index % 3) * 0.04f)
+            val startRadiusY = size.height * (0.25f + (index % 2) * 0.04f)
+            val start = Offset(
+                x = target.x + kotlin.math.cos(angle) * startRadiusX,
+                y = target.y + sin(angle) * startRadiusY,
+            )
+            val drift = Offset(
+                x = start.x + (target.x - start.x) * p,
+                y = start.y + (target.y - start.y) * p,
+            )
+            drawCircle(
+                color = CatchLingoColor.AmberSoft.copy(alpha = (1f - p) * 0.48f),
+                radius = (3.2f + p * 4.8f).dp.toPx(),
+                center = drift,
+            )
+        }
+        drawCircle(
+            color = CatchLingoColor.AmberSoft.copy(alpha = (1f - p) * 0.18f),
+            radius = (80f + p * 34f).dp.toPx(),
+            center = target,
+        )
+    }
+}
+
+@Composable
 private fun CatchConfirmationCard(
     word: DiscoveredWord,
     modifier: Modifier = Modifier,
@@ -655,8 +720,15 @@ private fun CatchConfirmationCard(
                     .padding(horizontal = 14.dp),
             ) {
                 Text(
-                    text = "Gesammelt: ${word.word}",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "Gesammelt",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = CatchLingoColor.AmberDeep,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = word.word,
+                    style = MaterialTheme.typography.headlineMedium,
                     color = CatchLingoColor.TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

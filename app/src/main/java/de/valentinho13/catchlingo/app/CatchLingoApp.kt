@@ -117,7 +117,6 @@ fun CatchLingoApp() {
                         onLeaveExplore = { exploreFullScreen = false },
                         onWordCollected = { word ->
                             if (discoveryRepository.collectWord(word)) {
-                                showFeedback("Gesammelt: ${word.word}")
                                 true
                             } else {
                                 false
