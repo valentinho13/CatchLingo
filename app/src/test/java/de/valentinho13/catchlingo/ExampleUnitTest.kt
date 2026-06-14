@@ -1,4 +1,4 @@
-package com.example.catchlingo
+package de.valentinho13.catchlingo
 
 import org.junit.Test
 
