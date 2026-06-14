@@ -16,6 +16,7 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -24,6 +25,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import de.valentinho13.catchlingo.data.DiscoveryRepository
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.CatchLingoMotion
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoBottomBar
@@ -37,6 +40,11 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun CatchLingoApp() {
+    val context = LocalContext.current
+    val discoveryRepository = remember {
+        DiscoveryRepository(context.applicationContext)
+    }
+    val discoveredWords by discoveryRepository.words.collectAsState()
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var exploreFullScreen by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -107,10 +115,18 @@ fun CatchLingoApp() {
                         exploreFullScreen = exploreFullScreen,
                         onStartExplore = { exploreFullScreen = true },
                         onLeaveExplore = { exploreFullScreen = false },
+                        onWordCollected = { word ->
+                            if (discoveryRepository.collectWord(word)) {
+                                showFeedback("Gesammelt: ${word.word}")
+                            }
+                        },
                         onFeedback = showFeedback,
                     )
 
-                    CatchLingoDestination.Dictionary -> DictionaryScreen(onFeedback = showFeedback)
+                    CatchLingoDestination.Dictionary -> DictionaryScreen(
+                        words = discoveredWords,
+                        onFeedback = showFeedback,
+                    )
                     CatchLingoDestination.Review -> ReviewScreen(onFeedback = showFeedback)
                 }
             }

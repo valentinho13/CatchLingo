@@ -74,6 +74,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -82,6 +84,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.label.ImageLabeling
+import com.google.mlkit.vision.label.ImageLabeler
+import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
+import de.valentinho13.catchlingo.data.DiscoveredWord
 import de.valentinho13.catchlingo.R
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.CatchLingoMotion
@@ -92,6 +99,7 @@ import de.valentinho13.catchlingo.designsystem.components.CatchLingoSpecimenCard
 import de.valentinho13.catchlingo.designsystem.components.MiniPill
 import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 import kotlin.math.roundToInt
+import java.util.concurrent.Executors
 
 @Composable
 fun DiscoverScreen(
@@ -101,12 +109,14 @@ fun DiscoverScreen(
     exploreState: DiscoverUiState = PreviewDiscoverState,
     onStartExplore: () -> Unit = {},
     onLeaveExplore: () -> Unit = {},
+    onWordCollected: (DiscoveredWord) -> Unit = {},
     onFeedback: (String) -> Unit = {},
 ) {
     if (exploreFullScreen) {
         ExploreScreen(
             state = exploreState,
             onLeaveExplore = onLeaveExplore,
+            onWordCollected = onWordCollected,
             modifier = modifier,
         )
     } else {
@@ -246,10 +256,12 @@ private fun WarmPreviewCard(onPronounceClick: () -> Unit) {
 private fun ExploreScreen(
     state: DiscoverUiState,
     onLeaveExplore: () -> Unit,
+    onWordCollected: (DiscoveredWord) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val haptics = rememberCatchLingoHaptics()
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
@@ -257,6 +269,7 @@ private fun ExploreScreen(
     }
     var permissionDenied by remember { mutableStateOf(false) }
     var cameraStreaming by remember { mutableStateOf(false) }
+    var mlUnavailable by remember { mutableStateOf(false) }
     val cameraPlaceholderAlpha by animateFloatAsState(
         targetValue = if (hasCameraPermission && cameraStreaming) 0f else 1f,
         animationSpec = tween(300, easing = CatchLingoMotion.EaseInOutWarm),
@@ -306,6 +319,14 @@ private fun ExploreScreen(
                 onStreamStateChanged = { streaming ->
                     cameraStreaming = streaming
                 },
+                onMlUnavailable = {
+                    mlUnavailable = true
+                },
+                onWordCollected = { word ->
+                    mlUnavailable = false
+                    haptics.softTick()
+                    onWordCollected(word)
+                },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -328,6 +349,7 @@ private fun ExploreScreen(
             state = state,
             cameraStreaming = cameraStreaming,
             permissionDenied = permissionDenied,
+            mlUnavailable = mlUnavailable,
             onLeaveExplore = onLeaveExplore,
             modifier = Modifier.fillMaxSize(),
         )
@@ -337,6 +359,8 @@ private fun ExploreScreen(
 @Composable
 private fun CameraXPreviewLayer(
     onStreamStateChanged: (Boolean) -> Unit,
+    onMlUnavailable: () -> Unit,
+    onWordCollected: (DiscoveredWord) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -351,13 +375,22 @@ private fun CameraXPreviewLayer(
             implementationMode = PreviewView.ImplementationMode.PERFORMANCE
         }
     }
+    val imageLabeler = remember {
+        ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
+    }
+    val analysisExecutor = remember {
+        Executors.newSingleThreadExecutor()
+    }
+    val discoveryGate = remember {
+        DiscoveryGate()
+    }
 
     AndroidView(
         factory = { previewView },
         modifier = modifier,
     )
 
-    DisposableEffect(context, lifecycleOwner, previewView) {
+    DisposableEffect(context, lifecycleOwner, previewView, imageLabeler, analysisExecutor, discoveryGate) {
         onStreamStateChanged(false)
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         val streamObserver = Observer<PreviewView.StreamState> { streamState ->
@@ -366,28 +399,158 @@ private fun CameraXPreviewLayer(
         previewView.previewStreamState.observe(lifecycleOwner, streamObserver)
         cameraProviderFuture.addListener(
             {
-                val cameraProvider = cameraProviderFuture.get()
-                val preview = Preview.Builder().build().also { cameraPreview ->
-                    cameraPreview.setSurfaceProvider(previewView.surfaceProvider)
+                runCatching {
+                    val cameraProvider = cameraProviderFuture.get()
+                    val preview = Preview.Builder().build().also { cameraPreview ->
+                        cameraPreview.setSurfaceProvider(previewView.surfaceProvider)
+                    }
+                    val analysis = ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build()
+                        .also { imageAnalysis ->
+                            imageAnalysis.setAnalyzer(analysisExecutor) { imageProxy ->
+                                analyzeDiscoveryFrame(
+                                    imageProxy = imageProxy,
+                                    imageLabeler = imageLabeler,
+                                    discoveryGate = discoveryGate,
+                                    onMlUnavailable = onMlUnavailable,
+                                    onWordCollected = onWordCollected,
+                                )
+                            }
+                        }
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
+                        preview,
+                        analysis,
+                    )
+                }.onFailure {
+                    onMlUnavailable()
                 }
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    lifecycleOwner,
-                    CameraSelector.DEFAULT_BACK_CAMERA,
-                    preview,
-                )
             },
             ContextCompat.getMainExecutor(context),
         )
         onDispose {
             previewView.previewStreamState.removeObserver(streamObserver)
             onStreamStateChanged(false)
+            imageLabeler.close()
+            analysisExecutor.shutdown()
             if (cameraProviderFuture.isDone) {
                 runCatching {
                     cameraProviderFuture.get().unbindAll()
                 }
             }
         }
+    }
+}
+
+private fun analyzeDiscoveryFrame(
+    imageProxy: ImageProxy,
+    imageLabeler: ImageLabeler,
+    discoveryGate: DiscoveryGate,
+    onMlUnavailable: () -> Unit,
+    onWordCollected: (DiscoveredWord) -> Unit,
+) {
+    val now = System.currentTimeMillis()
+    if (!discoveryGate.shouldAnalyze(now)) {
+        imageProxy.close()
+        return
+    }
+
+    val mediaImage = imageProxy.image
+    if (mediaImage == null) {
+        discoveryGate.finish()
+        imageProxy.close()
+        return
+    }
+
+    val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+    imageLabeler.process(image)
+        .addOnSuccessListener { labels ->
+            val bestMatch = labels
+                .asSequence()
+                .mapNotNull { label ->
+                    mapLabelToVocabulary(label.text)?.let { match -> match to label.confidence }
+                }
+                .maxByOrNull { it.second }
+            val accepted = bestMatch?.let { (match, confidence) ->
+                discoveryGate.accept(match = match, confidence = confidence, nowMillis = System.currentTimeMillis())
+            }
+            if (accepted != null) {
+                onWordCollected(accepted.toDiscoveredWord(System.currentTimeMillis()))
+            }
+        }
+        .addOnFailureListener {
+            onMlUnavailable()
+        }
+        .addOnCompleteListener {
+            discoveryGate.finish()
+            imageProxy.close()
+        }
+}
+
+private class DiscoveryGate {
+    private var inFlight = false
+    private var lastAnalysisAtMillis = 0L
+    private var candidateId: String? = null
+    private var candidateCount = 0
+    private var candidateSeenAtMillis = 0L
+    private val recentlyCollectedAtMillis = mutableMapOf<String, Long>()
+
+    @Synchronized
+    fun shouldAnalyze(nowMillis: Long): Boolean {
+        if (inFlight || nowMillis - lastAnalysisAtMillis < ANALYSIS_INTERVAL_MILLIS) {
+            return false
+        }
+        inFlight = true
+        lastAnalysisAtMillis = nowMillis
+        return true
+    }
+
+    @Synchronized
+    fun accept(match: VocabularyMatch, confidence: Float, nowMillis: Long): VocabularyMatch? {
+        if (confidence < MIN_LABEL_CONFIDENCE) {
+            return null
+        }
+
+        recentlyCollectedAtMillis.entries.removeAll { (_, collectedAt) ->
+            nowMillis - collectedAt > DUPLICATE_WINDOW_MILLIS
+        }
+        if (nowMillis - (recentlyCollectedAtMillis[match.id] ?: 0L) < DUPLICATE_WINDOW_MILLIS) {
+            return null
+        }
+
+        if (candidateId == match.id && nowMillis - candidateSeenAtMillis < STABLE_MATCH_WINDOW_MILLIS) {
+            candidateCount += 1
+        } else {
+            candidateId = match.id
+            candidateCount = 1
+        }
+        candidateSeenAtMillis = nowMillis
+
+        if (candidateCount < REQUIRED_STABLE_MATCHES) {
+            return null
+        }
+
+        recentlyCollectedAtMillis[match.id] = nowMillis
+        candidateId = null
+        candidateCount = 0
+        candidateSeenAtMillis = 0L
+        return match
+    }
+
+    @Synchronized
+    fun finish() {
+        inFlight = false
+    }
+
+    private companion object {
+        const val ANALYSIS_INTERVAL_MILLIS = 900L
+        const val STABLE_MATCH_WINDOW_MILLIS = 4_500L
+        const val DUPLICATE_WINDOW_MILLIS = 30_000L
+        const val MIN_LABEL_CONFIDENCE = 0.62f
+        const val REQUIRED_STABLE_MATCHES = 2
     }
 }
 
@@ -441,6 +604,7 @@ private fun ExploreChrome(
     state: DiscoverUiState,
     cameraStreaming: Boolean,
     permissionDenied: Boolean,
+    mlUnavailable: Boolean,
     onLeaveExplore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -480,11 +644,12 @@ private fun ExploreChrome(
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(
                 text = when {
-                    cameraStreaming -> "Worterkennung kommt bald."
-                    permissionDenied -> "Kamera-Zugriff fehlt. Die Vorschau bleibt fÃ¼r dich sichtbar."
+                    mlUnavailable -> "Worterkennung ist gerade nicht verfuegbar."
+                    cameraStreaming -> "Worterkennung aktiv. Richte dein Handy auf einfache Alltagsobjekte."
+                    permissionDenied -> "Kamera-Zugriff fehlt. Die Vorschau bleibt sichtbar."
                     else -> state.sceneTitle
                 },
-                style = if (cameraStreaming || permissionDenied) {
+                style = if (cameraStreaming || permissionDenied || mlUnavailable) {
                     MaterialTheme.typography.bodyMedium
                 } else {
                     MaterialTheme.typography.labelMedium
@@ -497,7 +662,7 @@ private fun ExploreChrome(
                 CatchOrb(cameraStreaming = cameraStreaming)
                 Spacer(modifier = Modifier.weight(1f))
                 MiniPill(
-                    text = if (cameraStreaming) "Bald automatisch sammeln" else "Automatisch sammeln",
+                    text = "Automatisch sammeln",
                     color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.86f),
                     contentColor = CatchLingoColor.TextMuted,
                 )

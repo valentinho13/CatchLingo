@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import de.valentinho13.catchlingo.data.DiscoveredWord
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoChip
@@ -47,12 +48,12 @@ import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 @Composable
 fun DictionaryScreen(
     modifier: Modifier = Modifier,
+    words: List<DiscoveredWord> = emptyList(),
     onFeedback: (String) -> Unit = {},
 ) {
-    val words = emptyList<DictionaryWord>()
     val filters = listOf("Alle", "Neu", "Lerne", "Bekannt")
     var selectedFilter by rememberSaveable { mutableStateOf("Alle") }
-    val visibleWords = if (selectedFilter == "Alle") words else words.filter { it.state == selectedFilter }
+    val visibleWords = if (selectedFilter == "Alle") words else words.filter { it.dictionaryState() == selectedFilter }
     val animatedWordCount by animateIntAsState(targetValue = words.size, label = "dictionaryWordCount")
     val haptics = rememberCatchLingoHaptics()
 
@@ -163,7 +164,7 @@ private fun DictionaryEmptyState() {
 }
 
 @Composable
-private fun DictionaryRow(word: DictionaryWord) {
+private fun DictionaryRow(word: DiscoveredWord) {
     CatchLingoCard(modifier = Modifier.fillMaxWidth(), elevated = false) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             CategoryIllustration(visual = word.category.visual())
@@ -172,15 +173,16 @@ private fun DictionaryRow(word: DictionaryWord) {
                     .weight(1f)
                     .padding(horizontal = 14.dp),
             ) {
-                Text(text = word.translation, style = MaterialTheme.typography.titleMedium)
+                Text(text = word.word, style = MaterialTheme.typography.titleMedium)
                 Text(text = word.source, style = MaterialTheme.typography.bodyMedium, color = CatchLingoColor.TextMuted)
                 Spacer(modifier = Modifier.height(5.dp))
                 Text(text = word.category, style = MaterialTheme.typography.labelMedium, color = CatchLingoColor.Green)
             }
+            val state = word.dictionaryState()
             MiniPill(
-                text = word.state,
-                color = if (word.state == "Neu") CatchLingoColor.AmberSoft else CatchLingoColor.GreenSoft,
-                contentColor = if (word.state == "Neu") CatchLingoColor.AmberDeep else CatchLingoColor.GreenDeep,
+                text = state,
+                color = if (state == "Neu") CatchLingoColor.AmberSoft else CatchLingoColor.GreenSoft,
+                contentColor = if (state == "Neu") CatchLingoColor.AmberDeep else CatchLingoColor.GreenDeep,
             )
         }
     }
@@ -237,9 +239,4 @@ private data class CategoryVisual(
     val tint: Color,
 )
 
-private data class DictionaryWord(
-    val translation: String,
-    val source: String,
-    val category: String,
-    val state: String,
-)
+private fun DiscoveredWord.dictionaryState(): String = "Neu"
