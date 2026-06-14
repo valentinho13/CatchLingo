@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.CatchLingoMotion
 import de.valentinho13.catchlingo.designsystem.catchLingo
+import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 
 data class CatchLingoNavItem(
     val label: String,
@@ -90,6 +91,7 @@ fun CatchLingoBottomBar(
     onSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptics = rememberCatchLingoHaptics()
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -121,7 +123,12 @@ fun CatchLingoBottomBar(
                 )
 
                 IconButton(
-                    onClick = { onSelected(index) },
+                    onClick = {
+                        if (!selected) {
+                            haptics.softTick()
+                        }
+                        onSelected(index)
+                    },
                     modifier = Modifier.weight(1f),
                 ) {
                     Column(

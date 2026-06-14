@@ -29,6 +29,7 @@ import androidx.compose.material3.Icon
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.CatchLingoMotion
 import de.valentinho13.catchlingo.designsystem.catchLingo
+import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 
 enum class CatchLingoButtonStyle {
     Primary,
@@ -45,6 +46,7 @@ fun CatchLingoButton(
     style: CatchLingoButtonStyle = CatchLingoButtonStyle.Primary,
     enabled: Boolean = true,
 ) {
+    val haptics = rememberCatchLingoHaptics()
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -54,6 +56,10 @@ fun CatchLingoButton(
     )
     val shape = RoundedCornerShape(MaterialTheme.catchLingo.radii.button)
     val contentPadding = PaddingValues(horizontal = 20.dp, vertical = 13.dp)
+    val clickWithFeedback = {
+        haptics.softTick()
+        onClick()
+    }
 
     val content: @Composable () -> Unit = {
         Row(
@@ -69,7 +75,7 @@ fun CatchLingoButton(
 
     when (style) {
         CatchLingoButtonStyle.Primary -> Button(
-            onClick = onClick,
+            onClick = clickWithFeedback,
             enabled = enabled,
             modifier = modifier
                 .heightIn(min = 48.dp)
@@ -91,7 +97,7 @@ fun CatchLingoButton(
         )
 
         CatchLingoButtonStyle.Secondary -> Button(
-            onClick = onClick,
+            onClick = clickWithFeedback,
             enabled = enabled,
             modifier = modifier
                 .heightIn(min = 48.dp)
@@ -111,7 +117,7 @@ fun CatchLingoButton(
         )
 
         CatchLingoButtonStyle.Quiet -> OutlinedButton(
-            onClick = onClick,
+            onClick = clickWithFeedback,
             enabled = enabled,
             modifier = modifier
                 .heightIn(min = 48.dp)
