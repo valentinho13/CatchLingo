@@ -45,7 +45,7 @@ fun DictionaryScreen(modifier: Modifier = Modifier) {
         CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "24 Woerter gesammelt", style = MaterialTheme.typography.titleMedium)
+                    Text(text = "24 Wörter gesammelt", style = MaterialTheme.typography.titleMedium)
                     Text(
                         text = "Ein ruhiges Feldjournal deiner echten Funde.",
                         style = MaterialTheme.typography.bodyMedium,

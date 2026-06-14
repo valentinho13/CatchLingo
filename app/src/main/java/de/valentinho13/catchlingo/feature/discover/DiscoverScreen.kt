@@ -26,18 +26,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Eco
 import androidx.compose.material.icons.outlined.Explore
-import androidx.compose.material.icons.outlined.LocalCafe
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -62,17 +64,43 @@ import de.valentinho13.catchlingo.R
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.CatchLingoMotion
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoButton
+import de.valentinho13.catchlingo.designsystem.components.CatchLingoButtonStyle
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoCard
-import de.valentinho13.catchlingo.designsystem.components.CatchLingoChip
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoHeroCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoSpecimenCard
 import de.valentinho13.catchlingo.designsystem.components.MiniPill
+import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 import kotlin.math.roundToInt
 
 @Composable
 fun DiscoverScreen(
     modifier: Modifier = Modifier,
-    state: DiscoverUiState = PreviewDiscoverState,
+    exploreFullScreen: Boolean = false,
+    state: DiscoverUiState = EmptyDiscoverState,
+    exploreState: DiscoverUiState = PreviewDiscoverState,
+    onStartExplore: () -> Unit = {},
+    onLeaveExplore: () -> Unit = {},
+) {
+    if (exploreFullScreen) {
+        ExploreScreen(
+            state = exploreState,
+            onLeaveExplore = onLeaveExplore,
+            modifier = modifier,
+        )
+    } else {
+        HomeScreen(
+            state = state,
+            onStartExplore = onStartExplore,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun HomeScreen(
+    state: DiscoverUiState,
+    onStartExplore: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     LazyColumn(
         modifier = modifier
@@ -83,31 +111,19 @@ fun DiscoverScreen(
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
-            DiscoverHero(state = state)
+            HomeHero(state = state, onStartExplore = onStartExplore)
         }
         item {
-            WarmDiscoveryScene(state = state)
+            FirstFindCard(onStartExplore = onStartExplore)
         }
         item {
-            CategoryRail(categories = state.categories)
-        }
-        item {
-            SessionPulseCard(state = state)
-        }
-        items(state.freshFinds) { word ->
-            CatchLingoSpecimenCard(
-                word = word.word,
-                source = word.source,
-                context = word.context,
-                status = word.status,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            WarmPreviewCard(onStartExplore = onStartExplore)
         }
     }
 }
 
 @Composable
-private fun DiscoverHero(state: DiscoverUiState) {
+private fun HomeHero(state: DiscoverUiState, onStartExplore: () -> Unit) {
     CatchLingoHeroCard(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -118,29 +134,165 @@ private fun DiscoverHero(state: DiscoverUiState) {
                 )
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
-                    text = state.wordsToday.toString(),
-                    style = MaterialTheme.typography.displayLarge,
+                    text = "Noch keine Wörter",
+                    style = MaterialTheme.typography.headlineLarge,
                     color = CatchLingoColor.GreenDeep,
-                )
-                Text(
-                    text = "Woerter heute",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = CatchLingoColor.TextPrimary,
                 )
                 Text(
                     text = state.companionLine,
                     style = MaterialTheme.typography.bodyMedium,
                     color = CatchLingoColor.TextMuted,
-                    modifier = Modifier.padding(top = 6.dp, end = 8.dp),
+                    modifier = Modifier.padding(top = 8.dp, end = 8.dp),
                 )
                 Spacer(modifier = Modifier.height(18.dp))
                 CatchLingoButton(
-                    text = "Weiter entdecken",
+                    text = "Ersten Fund entdecken",
                     icon = Icons.Outlined.Explore,
-                    onClick = {},
+                    onClick = onStartExplore,
                 )
             }
             FloatingCompanion()
+        }
+    }
+}
+
+@Composable
+private fun FirstFindCard(onStartExplore: () -> Unit) {
+    CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                modifier = Modifier.size(52.dp),
+                shape = CircleShape,
+                color = CatchLingoColor.GreenSoft,
+                contentColor = CatchLingoColor.GreenDeep,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.MenuBook,
+                    contentDescription = null,
+                    modifier = Modifier.padding(13.dp),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 14.dp),
+            ) {
+                Text(text = "Dein Wörterbuch wartet", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = "Sammle dein erstes Wort aus der echten Umgebung. Danach wächst hier dein Feldjournal.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = CatchLingoColor.TextMuted,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        CatchLingoButton(
+            text = "In die Welt schauen",
+            onClick = onStartExplore,
+            style = CatchLingoButtonStyle.Quiet,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun WarmPreviewCard(onStartExplore: () -> Unit) {
+    CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
+        Text(text = "So fühlt sich ein Fund an", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(12.dp))
+        CatchLingoSpecimenCard(
+            word = "kopi",
+            source = "coffee",
+            context = "Café",
+            status = "Beispielfund",
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        CatchLingoButton(
+            text = "Jetzt entdecken",
+            icon = Icons.Outlined.Eco,
+            onClick = onStartExplore,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun ExploreScreen(
+    state: DiscoverUiState,
+    onLeaveExplore: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(CatchLingoColor.Canvas),
+    ) {
+        SunnyCameraScene(
+            state = state,
+            modifier = Modifier.fillMaxSize(),
+        )
+        ExploreChrome(
+            state = state,
+            onLeaveExplore = onLeaveExplore,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Composable
+private fun ExploreChrome(
+    state: DiscoverUiState,
+    onLeaveExplore: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptics = rememberCatchLingoHaptics()
+    Column(
+        modifier = modifier
+            .statusBarsPadding()
+            .padding(18.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MiniPill(
+                text = "Automatisch sammeln",
+                color = CatchLingoColor.GreenDeep.copy(alpha = 0.72f),
+                contentColor = CatchLingoColor.WarmSurfaceRaised,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            IconButton(
+                onClick = {
+                    haptics.softTick()
+                    onLeaveExplore()
+                },
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.88f)),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = "Explore schließen",
+                    tint = CatchLingoColor.TextPrimary,
+                )
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(
+                text = state.sceneTitle,
+                style = MaterialTheme.typography.labelMedium,
+                color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.82f),
+            )
+            Row(verticalAlignment = Alignment.Bottom) {
+                CatchOrb(words = state.wordsToday)
+                Spacer(modifier = Modifier.weight(1f))
+                MiniPill(
+                    text = "schau dich um...",
+                    color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.86f),
+                    contentColor = CatchLingoColor.TextMuted,
+                )
+            }
         }
     }
 }
@@ -172,17 +324,11 @@ private fun FloatingCompanion() {
 }
 
 @Composable
-private fun WarmDiscoveryScene(state: DiscoverUiState) {
-    val transition = rememberInfiniteTransition(label = "discoverScene")
-    val pulse by transition.animateFloat(
-        initialValue = 0.92f,
-        targetValue = 1.06f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = CatchLingoMotion.EaseInOutWarm),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "orbPulse",
-    )
+private fun SunnyCameraScene(
+    state: DiscoverUiState,
+    modifier: Modifier = Modifier,
+) {
+    val transition = rememberInfiniteTransition(label = "exploreScene")
     val trailPhase by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -194,62 +340,13 @@ private fun WarmDiscoveryScene(state: DiscoverUiState) {
     )
 
     BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(0.78f)
-            .clip(MaterialTheme.shapes.extraLarge)
-            .drawBehind {
-                drawRoundRect(
-                    color = CatchLingoColor.Shadow.copy(alpha = 0.22f),
-                    topLeft = Offset(0f, 18f),
-                    size = size,
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(34.dp.toPx()),
-                )
-            }
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFF785A2A),
-                        Color(0xFF385C39),
-                        Color(0xFF173A31),
-                    ),
-                ),
-            ),
+        modifier = modifier
+            .background(Color(0xFF6D7D4B)),
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
-            drawRect(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        CatchLingoColor.AmberSoft.copy(alpha = 0.72f),
-                        CatchLingoColor.Amber.copy(alpha = 0.22f),
-                        Color.Transparent,
-                    ),
-                    center = Offset(size.width * 0.18f, size.height * 0.12f),
-                    radius = size.width * 0.88f,
-                ),
-            )
-            drawRect(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        CatchLingoColor.Leaf.copy(alpha = 0.28f),
-                        Color.Transparent,
-                    ),
-                    center = Offset(size.width * 0.72f, size.height * 0.42f),
-                    radius = size.width * 0.52f,
-                ),
-            )
-            drawWarmSceneLines()
+            drawSunnyRoom()
             drawMagnetTrails(words = state.noticedWords, phase = trailPhase)
         }
-
-        MiniPill(
-            text = "Automatisch sammeln",
-            color = CatchLingoColor.GreenDeep.copy(alpha = 0.72f),
-            contentColor = CatchLingoColor.WarmSurfaceRaised,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(16.dp),
-        )
 
         state.noticedWords.forEachIndexed { index, word ->
             AnimatedVisibility(
@@ -259,35 +356,6 @@ private fun WarmDiscoveryScene(state: DiscoverUiState) {
                 SceneWordChip(word = word, index = index)
             }
         }
-
-        CatchOrb(
-            words = state.wordsToday,
-            pulse = pulse,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 26.dp),
-        )
-
-        Text(
-            text = state.sceneTitle,
-            style = MaterialTheme.typography.labelMedium,
-            color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.82f),
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 18.dp, bottom = 24.dp),
-        )
-
-        Icon(
-            imageVector = Icons.Outlined.CameraAlt,
-            contentDescription = null,
-            tint = CatchLingoColor.TextPrimary,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(18.dp)
-                .clip(CircleShape)
-                .background(CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.92f))
-                .padding(10.dp),
-        )
     }
 }
 
@@ -342,7 +410,17 @@ private fun BoxWithConstraintsScope.SceneWordChip(word: NoticedWord, index: Int)
 }
 
 @Composable
-private fun CatchOrb(words: Int, pulse: Float, modifier: Modifier = Modifier) {
+private fun CatchOrb(words: Int, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "catchOrb")
+    val pulse by transition.animateFloat(
+        initialValue = 0.94f,
+        targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = CatchLingoMotion.EaseInOutWarm),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "orbPulse",
+    )
     Box(
         modifier = modifier
             .size(124.dp)
@@ -365,7 +443,7 @@ private fun CatchOrb(words: Int, pulse: Float, modifier: Modifier = Modifier) {
             Icon(imageVector = Icons.Outlined.AutoAwesome, contentDescription = null, tint = CatchLingoColor.Amber)
             Text(text = words.toString(), style = MaterialTheme.typography.headlineLarge, color = CatchLingoColor.Green)
             Text(
-                text = "Woerter",
+                text = "Wörter",
                 style = MaterialTheme.typography.labelMedium,
                 color = CatchLingoColor.TextMuted,
                 textAlign = TextAlign.Center,
@@ -374,77 +452,123 @@ private fun CatchOrb(words: Int, pulse: Float, modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-private fun CategoryRail(categories: List<DiscoverCategory>) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        categories.forEachIndexed { index, category ->
-            CatchLingoChip(
-                text = "${category.label} ${category.count}",
-                selected = category.selected,
-                onClick = {},
-                icon = if (index == 0) Icons.Outlined.Eco else null,
-            )
-        }
-    }
-}
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSunnyRoom() {
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFFFDFA3),
+                Color(0xFFB9894D),
+                Color(0xFF536D43),
+                Color(0xFF23423A),
+            ),
+        ),
+    )
 
-@Composable
-private fun SessionPulseCard(state: DiscoverUiState) {
-    CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Outlined.LocalCafe,
-                contentDescription = null,
-                tint = CatchLingoColor.Amber,
-                modifier = Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(CatchLingoColor.AmberSoft.copy(alpha = 0.62f))
-                    .padding(10.dp),
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 14.dp),
-            ) {
-                Text(text = "Gerade gesammelt", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = "${state.sessionWords} neue Funde - ${state.rememberedWords} wiederbegegnet",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = CatchLingoColor.TextMuted,
-                )
-            }
-            Text(
-                text = "${state.streakDays} Tage",
-                style = MaterialTheme.typography.labelLarge,
-                color = CatchLingoColor.GreenDeep,
-            )
-        }
-    }
-}
+    drawRect(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                CatchLingoColor.AmberSoft.copy(alpha = 0.86f),
+                CatchLingoColor.Amber.copy(alpha = 0.24f),
+                Color.Transparent,
+            ),
+            center = Offset(size.width * 0.18f, size.height * 0.16f),
+            radius = size.width * 0.86f,
+        ),
+    )
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWarmSceneLines() {
-    val sunColor = CatchLingoColor.AmberSoft.copy(alpha = 0.26f)
-    repeat(5) { index ->
-        val y = size.height * (0.14f + index * 0.13f)
+    drawRect(
+        color = Color(0xFF715238).copy(alpha = 0.62f),
+        topLeft = Offset(0f, size.height * 0.62f),
+        size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.38f),
+    )
+
+    repeat(8) { index ->
+        val y = size.height * (0.65f + index * 0.043f)
         drawLine(
-            color = sunColor,
-            start = Offset(size.width * 0.08f, y),
-            end = Offset(size.width * 0.92f, y + size.height * 0.08f),
-            strokeWidth = 1.4.dp.toPx(),
-            cap = StrokeCap.Round,
-        )
-    }
-    repeat(4) { index ->
-        val x = size.width * (0.16f + index * 0.2f)
-        drawLine(
-            color = Color.White.copy(alpha = 0.06f),
-            start = Offset(x, size.height * 0.08f),
-            end = Offset(x + size.width * 0.08f, size.height * 0.88f),
+            color = Color.White.copy(alpha = 0.08f),
+            start = Offset(0f, y),
+            end = Offset(size.width, y + size.height * 0.035f),
             strokeWidth = 1.dp.toPx(),
             cap = StrokeCap.Round,
         )
     }
+
+    drawRoundRect(
+        color = Color(0xFFFFF2C8).copy(alpha = 0.58f),
+        topLeft = Offset(size.width * 0.08f, size.height * 0.10f),
+        size = androidx.compose.ui.geometry.Size(size.width * 0.26f, size.height * 0.26f),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(24.dp.toPx()),
+    )
+    repeat(4) { index ->
+        val start = Offset(size.width * (0.12f + index * 0.055f), size.height * 0.11f)
+        drawLine(
+            color = Color.White.copy(alpha = 0.34f),
+            start = start,
+            end = Offset(start.x + size.width * 0.26f, size.height * 0.72f),
+            strokeWidth = 18.dp.toPx(),
+            cap = StrokeCap.Round,
+        )
+    }
+
+    drawRoundRect(
+        color = Color(0xFF5E3A24).copy(alpha = 0.92f),
+        topLeft = Offset(size.width * 0.18f, size.height * 0.58f),
+        size = androidx.compose.ui.geometry.Size(size.width * 0.52f, size.height * 0.10f),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx()),
+    )
+    drawRoundRect(
+        color = Color(0xFF4B2C1B).copy(alpha = 0.82f),
+        topLeft = Offset(size.width * 0.22f, size.height * 0.68f),
+        size = androidx.compose.ui.geometry.Size(size.width * 0.06f, size.height * 0.19f),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx()),
+    )
+    drawRoundRect(
+        color = Color(0xFF4B2C1B).copy(alpha = 0.82f),
+        topLeft = Offset(size.width * 0.58f, size.height * 0.68f),
+        size = androidx.compose.ui.geometry.Size(size.width * 0.06f, size.height * 0.19f),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx()),
+    )
+
+    drawCircle(
+        color = Color(0xFFF6EFE4).copy(alpha = 0.96f),
+        radius = size.width * 0.07f,
+        center = Offset(size.width * 0.36f, size.height * 0.54f),
+    )
+    drawOval(
+        color = Color(0xFF5B351E).copy(alpha = 0.92f),
+        topLeft = Offset(size.width * 0.31f, size.height * 0.51f),
+        size = androidx.compose.ui.geometry.Size(size.width * 0.10f, size.height * 0.035f),
+    )
+
+    drawCircle(
+        color = Color(0xFF254E38).copy(alpha = 0.92f),
+        radius = size.width * 0.09f,
+        center = Offset(size.width * 0.82f, size.height * 0.50f),
+    )
+    repeat(5) { index ->
+        val angle = -0.8f + index * 0.38f
+        drawLine(
+            color = Color(0xFF89A95B).copy(alpha = 0.76f),
+            start = Offset(size.width * 0.82f, size.height * 0.50f),
+            end = Offset(
+                size.width * (0.82f + kotlin.math.cos(angle) * 0.13f),
+                size.height * (0.50f + kotlin.math.sin(angle) * 0.12f),
+            ),
+            strokeWidth = 10.dp.toPx(),
+            cap = StrokeCap.Round,
+        )
+    }
+
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                Color.Transparent,
+                CatchLingoColor.TextPrimary.copy(alpha = 0.26f),
+            ),
+            startY = size.height * 0.52f,
+            endY = size.height,
+        ),
+    )
 }
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMagnetTrails(

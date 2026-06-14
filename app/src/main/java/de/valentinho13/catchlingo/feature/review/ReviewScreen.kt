@@ -86,13 +86,13 @@ fun ReviewScreen(modifier: Modifier = Modifier) {
             Text(text = "Sanftes Erinnern", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Review bleibt eine ruhige Hilfe fuer echte Funde, kein Schulmodus und kein Drucksystem.",
+                text = "Review bleibt eine ruhige Hilfe für echte Funde, kein Schulmodus und kein Drucksystem.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CatchLingoColor.TextMuted,
             )
             Spacer(modifier = Modifier.height(14.dp))
             CatchLingoButton(
-                text = "Spaeter erinnern",
+                text = "Später erinnern",
                 onClick = {},
                 style = CatchLingoButtonStyle.Quiet,
                 modifier = Modifier.fillMaxWidth(),
