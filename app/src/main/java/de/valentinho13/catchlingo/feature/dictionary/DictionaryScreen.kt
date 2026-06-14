@@ -74,6 +74,7 @@ fun DictionaryScreen(
                             color = CatchLingoColor.TextMuted,
                         )
                     }
+                    if (words.isNotEmpty()) {
                     IconButton(
                         onClick = {
                             haptics.softTick()
@@ -97,6 +98,7 @@ fun DictionaryScreen(
                             contentDescription = "Wörterbuch filtern",
                             tint = CatchLingoColor.TextMuted,
                         )
+                    }
                     }
                 }
             }

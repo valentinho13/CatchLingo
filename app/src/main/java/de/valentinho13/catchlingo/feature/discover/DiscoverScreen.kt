@@ -207,6 +207,7 @@ private fun FirstFindCard() {
 @Composable
 private fun WarmPreviewCard(onPronounceClick: () -> Unit) {
     CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
         Text(text = "So fühlt sich ein Fund an", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(12.dp))
         CatchLingoSpecimenCard(
@@ -217,6 +218,7 @@ private fun WarmPreviewCard(onPronounceClick: () -> Unit) {
             onPronounceClick = onPronounceClick,
             modifier = Modifier.fillMaxWidth(),
         )
+        }
     }
 }
 

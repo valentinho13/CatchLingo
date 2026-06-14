@@ -32,6 +32,7 @@ import de.valentinho13.catchlingo.designsystem.components.CatchLingoTopBar
 import de.valentinho13.catchlingo.feature.dictionary.DictionaryScreen
 import de.valentinho13.catchlingo.feature.discover.DiscoverScreen
 import de.valentinho13.catchlingo.feature.review.ReviewScreen
+import java.time.LocalTime
 import kotlinx.coroutines.launch
 
 @Composable
@@ -118,9 +119,15 @@ fun CatchLingoApp() {
 }
 
 private fun CatchLingoDestination.title(): String = when (this) {
-    CatchLingoDestination.Discover -> "Guten Morgen"
+    CatchLingoDestination.Discover -> LocalTime.now().catchLingoGreeting()
     CatchLingoDestination.Dictionary -> "Mein Wörterbuch"
     CatchLingoDestination.Review -> "Wiederholen"
+}
+
+private fun LocalTime.catchLingoGreeting(): String = when (hour) {
+    in 5..10 -> "Guten Morgen"
+    in 11..17 -> "Guten Tag"
+    else -> "Guten Abend"
 }
 
 private fun CatchLingoDestination.subtitle(): String = when (this) {
