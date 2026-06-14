@@ -13,7 +13,9 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -51,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -98,8 +101,9 @@ import de.valentinho13.catchlingo.designsystem.components.CatchLingoHeroCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoSpecimenCard
 import de.valentinho13.catchlingo.designsystem.components.MiniPill
 import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
-import kotlin.math.roundToInt
 import java.util.concurrent.Executors
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 @Composable
 fun DiscoverScreen(
@@ -109,7 +113,7 @@ fun DiscoverScreen(
     exploreState: DiscoverUiState = PreviewDiscoverState,
     onStartExplore: () -> Unit = {},
     onLeaveExplore: () -> Unit = {},
-    onWordCollected: (DiscoveredWord) -> Unit = {},
+    onWordCollected: (DiscoveredWord) -> Boolean = { false },
     onFeedback: (String) -> Unit = {},
 ) {
     if (exploreFullScreen) {
@@ -256,7 +260,7 @@ private fun WarmPreviewCard(onPronounceClick: () -> Unit) {
 private fun ExploreScreen(
     state: DiscoverUiState,
     onLeaveExplore: () -> Unit,
-    onWordCollected: (DiscoveredWord) -> Unit,
+    onWordCollected: (DiscoveredWord) -> Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -270,6 +274,8 @@ private fun ExploreScreen(
     var permissionDenied by remember { mutableStateOf(false) }
     var cameraStreaming by remember { mutableStateOf(false) }
     var mlUnavailable by remember { mutableStateOf(false) }
+    var caughtWord by remember { mutableStateOf<DiscoveredWord?>(null) }
+    var catchVersion by remember { mutableIntStateOf(0) }
     val cameraPlaceholderAlpha by animateFloatAsState(
         targetValue = if (hasCameraPermission && cameraStreaming) 0f else 1f,
         animationSpec = tween(300, easing = CatchLingoMotion.EaseInOutWarm),
@@ -309,6 +315,13 @@ private fun ExploreScreen(
         }
     }
 
+    LaunchedEffect(catchVersion) {
+        if (caughtWord != null) {
+            delay(2_400)
+            caughtWord = null
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -324,8 +337,11 @@ private fun ExploreScreen(
                 },
                 onWordCollected = { word ->
                     mlUnavailable = false
-                    haptics.softTick()
-                    onWordCollected(word)
+                    if (onWordCollected(word)) {
+                        haptics.softTick()
+                        caughtWord = word
+                        catchVersion += 1
+                    }
                 },
                 modifier = Modifier.fillMaxSize(),
             )
@@ -344,6 +360,18 @@ private fun ExploreScreen(
                     .align(Alignment.Center)
                     .padding(horizontal = 26.dp),
             )
+        }
+        AnimatedVisibility(
+            visible = caughtWord != null,
+            enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.96f),
+            exit = fadeOut(tween(260)) + scaleOut(targetScale = 0.98f),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 30.dp),
+        ) {
+            caughtWord?.let { word ->
+                CatchConfirmationCard(word = word)
+            }
         }
         ExploreChrome(
             state = state,
@@ -596,6 +624,57 @@ private fun PermissionDeniedMessage(modifier: Modifier = Modifier) {
             color = CatchLingoColor.TextMuted,
             modifier = Modifier.padding(top = 8.dp),
         )
+    }
+}
+
+@Composable
+private fun CatchConfirmationCard(
+    word: DiscoveredWord,
+    modifier: Modifier = Modifier,
+) {
+    CatchLingoCard(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = CircleShape,
+                color = CatchLingoColor.AmberSoft,
+                contentColor = CatchLingoColor.AmberDeep,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AutoAwesome,
+                    contentDescription = null,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 14.dp),
+            ) {
+                Text(
+                    text = "Gesammelt: ${word.word}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = CatchLingoColor.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = word.source,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = CatchLingoColor.TextMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            MiniPill(
+                text = "Neu",
+                color = CatchLingoColor.GreenSoft,
+                contentColor = CatchLingoColor.GreenDeep,
+            )
+        }
     }
 }
 

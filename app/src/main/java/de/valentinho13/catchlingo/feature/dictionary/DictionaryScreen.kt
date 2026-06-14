@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Chair
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.LocalCafe
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Signpost
 import androidx.compose.material3.Icon
@@ -68,9 +69,20 @@ fun DictionaryScreen(
             CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "$animatedWordCount Wörter gesammelt", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            text = "Deine echten Funde erscheinen hier, sobald du die Welt erkundest.",
+                            text = if (animatedWordCount == 1) {
+                                "1 Wort gesammelt"
+                            } else {
+                                "$animatedWordCount Wörter gesammelt"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            text = if (words.isEmpty()) {
+                                "Deine echten Funde erscheinen hier, sobald du die Welt erkundest."
+                            } else {
+                                "Deine Sammlung wächst mit jedem echten Fund."
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = CatchLingoColor.TextMuted,
                         )
@@ -167,7 +179,7 @@ private fun DictionaryEmptyState() {
 private fun DictionaryRow(word: DiscoveredWord) {
     CatchLingoCard(modifier = Modifier.fillMaxWidth(), elevated = false) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CategoryIllustration(visual = word.category.visual())
+            CategoryIllustration(visual = word.visual())
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -205,6 +217,16 @@ private fun CategoryIllustration(visual: CategoryVisual) {
             Icon(imageVector = visual.icon, contentDescription = null)
         }
     }
+}
+
+private fun DiscoveredWord.visual(): CategoryVisual = when {
+    id == "ponsel" -> CategoryVisual(
+        icon = Icons.Outlined.PhoneAndroid,
+        background = CatchLingoColor.GreenSoft,
+        tint = CatchLingoColor.Green,
+    )
+
+    else -> category.visual()
 }
 
 private fun String.visual(): CategoryVisual = when (this) {

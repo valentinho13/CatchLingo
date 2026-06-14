@@ -118,6 +118,9 @@ fun CatchLingoApp() {
                         onWordCollected = { word ->
                             if (discoveryRepository.collectWord(word)) {
                                 showFeedback("Gesammelt: ${word.word}")
+                                true
+                            } else {
+                                false
                             }
                         },
                         onFeedback = showFeedback,
