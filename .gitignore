@@ -14,3 +14,4 @@
 .cxx
 local.properties
 .idea/
+scripts/.last_adb_port
