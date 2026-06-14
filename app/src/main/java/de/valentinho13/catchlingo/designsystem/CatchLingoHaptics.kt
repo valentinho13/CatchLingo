@@ -15,22 +15,36 @@ class CatchLingoHaptics internal constructor(
     private val fallback: () -> Unit,
 ) {
     fun softTick() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && vibrator != null) {
-            vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
-        } else {
-            fallback()
+        runSafely {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && vibrator?.hasVibrator() == true) {
+                vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+            } else {
+                fallback()
+            }
         }
     }
 
     fun catchHold() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && vibrator != null) {
-            val effect = VibrationEffect.startComposition()
-                .addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_RISE, 0.45f)
-                .addPrimitive(VibrationEffect.Composition.PRIMITIVE_SPIN, 0.35f, 45)
-                .addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.65f, 80)
-                .compose()
-            vibrator.vibrate(effect)
-        } else {
+        runSafely {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && vibrator?.hasVibrator() == true) {
+                val effect = VibrationEffect.startComposition()
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_RISE, 0.45f)
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_SPIN, 0.35f, 45)
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.65f, 80)
+                    .compose()
+                vibrator.vibrate(effect)
+            } else {
+                fallback()
+            }
+        }
+    }
+
+    private fun runSafely(block: () -> Unit) {
+        try {
+            block()
+        } catch (_: SecurityException) {
+            fallback()
+        } catch (_: RuntimeException) {
             fallback()
         }
     }

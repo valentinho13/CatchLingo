@@ -34,7 +34,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Eco
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,7 +63,6 @@ import de.valentinho13.catchlingo.R
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.CatchLingoMotion
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoButton
-import de.valentinho13.catchlingo.designsystem.components.CatchLingoButtonStyle
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoHeroCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoSpecimenCard
@@ -114,10 +112,10 @@ private fun HomeScreen(
             HomeHero(state = state, onStartExplore = onStartExplore)
         }
         item {
-            FirstFindCard(onStartExplore = onStartExplore)
+            FirstFindCard()
         }
         item {
-            WarmPreviewCard(onStartExplore = onStartExplore)
+            WarmPreviewCard()
         }
     }
 }
@@ -157,7 +155,7 @@ private fun HomeHero(state: DiscoverUiState, onStartExplore: () -> Unit) {
 }
 
 @Composable
-private fun FirstFindCard(onStartExplore: () -> Unit) {
+private fun FirstFindCard() {
     CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(
@@ -185,18 +183,11 @@ private fun FirstFindCard(onStartExplore: () -> Unit) {
                 )
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
-        CatchLingoButton(
-            text = "In die Welt schauen",
-            onClick = onStartExplore,
-            style = CatchLingoButtonStyle.Quiet,
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 
 @Composable
-private fun WarmPreviewCard(onStartExplore: () -> Unit) {
+private fun WarmPreviewCard() {
     CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
         Text(text = "So fühlt sich ein Fund an", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(12.dp))
@@ -205,13 +196,6 @@ private fun WarmPreviewCard(onStartExplore: () -> Unit) {
             source = "coffee",
             context = "Café",
             status = "Beispielfund",
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(modifier = Modifier.height(14.dp))
-        CatchLingoButton(
-            text = "Jetzt entdecken",
-            icon = Icons.Outlined.Eco,
-            onClick = onStartExplore,
             modifier = Modifier.fillMaxWidth(),
         )
     }
