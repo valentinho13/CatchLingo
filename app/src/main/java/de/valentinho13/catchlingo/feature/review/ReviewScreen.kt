@@ -61,34 +61,18 @@ fun ReviewScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 MiniPill(
                     text = selectedMode.title,
-                    color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.86f),
-                    contentColor = CatchLingoColor.GreenDeep,
+                    color = selectedMode.softColor(),
+                    contentColor = selectedMode.accentColor(),
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = selectedMode.headline,
                     style = MaterialTheme.typography.headlineMedium,
-                    color = CatchLingoColor.GreenDeep,
+                    color = selectedMode.accentColor(),
                 )
                 Text(text = selectedMode.subtitle, style = MaterialTheme.typography.bodyMedium, color = CatchLingoColor.TextMuted)
                 Spacer(modifier = Modifier.height(14.dp))
-                Box(contentAlignment = Alignment.BottomEnd) {
-                    Box(
-                        modifier = Modifier
-                            .size(168.dp)
-                            .clip(CircleShape)
-                            .background(CatchLingoColor.AmberSoft.copy(alpha = 0.52f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(text = "kopi", style = MaterialTheme.typography.headlineLarge, color = CatchLingoColor.AmberDeep)
-                    }
-                    Image(
-                        painter = painterResource(R.drawable.welcome_cat),
-                        contentDescription = null,
-                        modifier = Modifier.size(76.dp),
-                        contentScale = ContentScale.Fit,
-                    )
-                }
+                ReviewPrompt(mode = selectedMode)
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = selectedMode.helperText,
@@ -145,6 +129,48 @@ fun ReviewScreen(
 }
 
 @Composable
+private fun ReviewPrompt(mode: ReviewMode) {
+    Box(contentAlignment = Alignment.BottomEnd) {
+        Box(
+            modifier = Modifier
+                .size(168.dp)
+                .clip(CircleShape)
+                .background(mode.softColor().copy(alpha = 0.62f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            when (mode) {
+                ReviewMode.Easy -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Outlined.Image,
+                        contentDescription = null,
+                        tint = mode.accentColor(),
+                        modifier = Modifier.size(46.dp),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Bild",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = mode.accentColor(),
+                    )
+                }
+
+                ReviewMode.Hard -> Text(
+                    text = "kopi",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = mode.accentColor(),
+                )
+            }
+        }
+        Image(
+            painter = painterResource(R.drawable.welcome_cat),
+            contentDescription = null,
+            modifier = Modifier.size(76.dp),
+            contentScale = ContentScale.Fit,
+        )
+    }
+}
+
+@Composable
 private fun ModeCard(
     mode: ReviewMode,
     selected: Boolean,
@@ -164,7 +190,7 @@ private fun ModeCard(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (selected) CatchLingoColor.Green else CatchLingoColor.Amber,
+                tint = mode.accentColor(),
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = mode.shortTitle, style = MaterialTheme.typography.titleMedium)
@@ -173,12 +199,22 @@ private fun ModeCard(
                 Spacer(modifier = Modifier.height(10.dp))
                 MiniPill(
                     text = "aktiv",
-                    color = CatchLingoColor.GreenSoft,
-                    contentColor = CatchLingoColor.GreenDeep,
+                    color = mode.softColor(),
+                    contentColor = mode.accentColor(),
                 )
             }
         }
     }
+}
+
+private fun ReviewMode.accentColor() = when (this) {
+    ReviewMode.Easy -> CatchLingoColor.Green
+    ReviewMode.Hard -> CatchLingoColor.Amber
+}
+
+private fun ReviewMode.softColor() = when (this) {
+    ReviewMode.Easy -> CatchLingoColor.GreenSoft
+    ReviewMode.Hard -> CatchLingoColor.AmberSoft
 }
 
 private enum class ReviewMode(

@@ -141,11 +141,6 @@ private fun StableHomeHero(state: DiscoverUiState, onStartExplore: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    MiniPill(
-                        text = state.greeting,
-                        color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.84f),
-                        contentColor = CatchLingoColor.GreenDeep,
-                    )
                     Spacer(modifier = Modifier.weight(1f))
                     FloatingCompanion(size = companionSize)
                 }
