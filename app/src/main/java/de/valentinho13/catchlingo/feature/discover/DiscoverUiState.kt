@@ -29,8 +29,8 @@ val EmptyDiscoverState = DiscoverUiState(
     noticedWords = listOf(
         NoticedWord(word = "kopi", source = "coffee", x = 0.28f, y = 0.58f),
         NoticedWord(word = "kursi", source = "chair", x = 0.72f, y = 0.28f),
-        NoticedWord(word = "meja", source = "table", x = 0.25f, y = 0.78f),
-        NoticedWord(word = "sepeda", source = "bicycle", x = 0.74f, y = 0.66f),
+        NoticedWord(word = "meja", source = "table", x = 0.24f, y = 0.50f),
+        NoticedWord(word = "sepeda", source = "bicycle", x = 0.74f, y = 0.60f),
     ),
     freshFinds = emptyList(),
     categories = emptyList(),
@@ -71,8 +71,8 @@ val PreviewDiscoverState = DiscoverUiState(
     noticedWords = listOf(
         NoticedWord(word = "kopi", source = "coffee", x = 0.28f, y = 0.58f),
         NoticedWord(word = "kursi", source = "chair", x = 0.72f, y = 0.28f),
-        NoticedWord(word = "meja", source = "table", x = 0.25f, y = 0.78f),
-        NoticedWord(word = "sepeda", source = "bicycle", x = 0.74f, y = 0.66f),
+        NoticedWord(word = "meja", source = "table", x = 0.24f, y = 0.50f),
+        NoticedWord(word = "sepeda", source = "bicycle", x = 0.74f, y = 0.60f),
     ),
     freshFinds = listOf(
         SpecimenWord(word = "kopi", source = "coffee", context = "Essen & Trinken", status = "Neu"),

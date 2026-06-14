@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -57,6 +58,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import de.valentinho13.catchlingo.R
@@ -108,11 +111,11 @@ private fun HomeScreen(
             .fillMaxSize()
             .background(CatchLingoColor.Canvas),
         state = rememberLazyListState(),
-        contentPadding = PaddingValues(start = 24.dp, top = 18.dp, end = 24.dp, bottom = 120.dp),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
-            HomeHero(state = state, onStartExplore = onStartExplore)
+            StableHomeHero(state = state, onStartExplore = onStartExplore)
         }
         item {
             FirstFindCard()
@@ -128,35 +131,48 @@ private fun HomeScreen(
 }
 
 @Composable
-private fun HomeHero(state: DiscoverUiState, onStartExplore: () -> Unit) {
+private fun StableHomeHero(state: DiscoverUiState, onStartExplore: () -> Unit) {
     CatchLingoHeroCard(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                MiniPill(
-                    text = state.greeting,
-                    color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.84f),
-                    contentColor = CatchLingoColor.GreenDeep,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
+        BoxWithConstraints {
+            val companionSize = if (maxWidth < 340.dp) 92.dp else 112.dp
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    MiniPill(
+                        text = state.greeting,
+                        color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.84f),
+                        contentColor = CatchLingoColor.GreenDeep,
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    FloatingCompanion(size = companionSize)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Noch keine Wörter",
                     style = MaterialTheme.typography.headlineLarge,
                     color = CatchLingoColor.GreenDeep,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = state.companionLine,
                     style = MaterialTheme.typography.bodyMedium,
                     color = CatchLingoColor.TextMuted,
-                    modifier = Modifier.padding(top = 8.dp, end = 8.dp),
+                    modifier = Modifier.padding(top = 8.dp),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(modifier = Modifier.height(18.dp))
                 CatchLingoButton(
                     text = "Ersten Fund entdecken",
                     icon = Icons.Outlined.Explore,
                     onClick = onStartExplore,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-            FloatingCompanion()
         }
     }
 }
@@ -242,6 +258,7 @@ private fun ExploreChrome(
     Column(
         modifier = modifier
             .statusBarsPadding()
+            .navigationBarsPadding()
             .padding(18.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -258,7 +275,7 @@ private fun ExploreChrome(
                     onLeaveExplore()
                 },
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
                     .background(CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.88f)),
             ) {
@@ -275,6 +292,8 @@ private fun ExploreChrome(
                 text = state.sceneTitle,
                 style = MaterialTheme.typography.labelMedium,
                 color = CatchLingoColor.WarmSurfaceRaised.copy(alpha = 0.82f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Row(verticalAlignment = Alignment.Bottom) {
                 CatchOrb(words = state.wordsToday)
@@ -290,7 +309,7 @@ private fun ExploreChrome(
 }
 
 @Composable
-private fun FloatingCompanion() {
+private fun FloatingCompanion(size: Dp = 148.dp) {
     val transition = rememberInfiniteTransition(label = "catFloat")
     val lift by transition.animateFloat(
         initialValue = 0f,
@@ -306,7 +325,7 @@ private fun FloatingCompanion() {
         painter = painterResource(R.drawable.welcome_cat),
         contentDescription = "CatchLingo Begleiter",
         modifier = Modifier
-            .size(148.dp)
+            .size(size)
             .graphicsLayer {
                 translationY = lift
                 shadowElevation = 18f
