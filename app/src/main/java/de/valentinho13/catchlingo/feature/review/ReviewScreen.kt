@@ -2,7 +2,6 @@ package de.valentinho13.catchlingo.feature.review
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.QuestionMark
 import androidx.compose.material3.Icon
@@ -41,6 +41,8 @@ import de.valentinho13.catchlingo.designsystem.components.CatchLingoButtonStyle
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoHeroCard
 import de.valentinho13.catchlingo.designsystem.components.MiniPill
+import de.valentinho13.catchlingo.designsystem.components.StaggeredEntrance
+import de.valentinho13.catchlingo.designsystem.components.catchLingoTactileClickable
 import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 
 @Composable
@@ -48,6 +50,7 @@ fun ReviewScreen(
     modifier: Modifier = Modifier,
     onFeedback: (String) -> Unit = {},
 ) {
+    val reviewWords = emptyList<String>()
     var selectedMode by rememberSaveable { mutableStateOf(ReviewMode.Easy) }
 
     Column(
@@ -57,71 +60,154 @@ fun ReviewScreen(
             .padding(horizontal = 24.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        CatchLingoHeroCard(modifier = Modifier.fillMaxWidth()) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                MiniPill(
-                    text = selectedMode.title,
-                    color = selectedMode.softColor(),
-                    contentColor = selectedMode.accentColor(),
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = selectedMode.headline,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = selectedMode.accentColor(),
-                )
-                Text(text = selectedMode.subtitle, style = MaterialTheme.typography.bodyMedium, color = CatchLingoColor.TextMuted)
-                Spacer(modifier = Modifier.height(14.dp))
-                ReviewPrompt(mode = selectedMode)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = selectedMode.helperText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = CatchLingoColor.TextPrimary,
-                )
-                Spacer(modifier = Modifier.height(18.dp))
-                CatchLingoButton(
-                    text = "Starten",
-                    onClick = {
-                        onFeedback("${selectedMode.title} ist bereit, sobald deine ersten echten Funde gespeichert sind.")
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+        if (reviewWords.isEmpty()) {
+            StaggeredEntrance(index = 0) {
+                ReviewEmptyState()
+            }
+            StaggeredEntrance(index = 1) {
+                CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        Text(text = "Sanftes Erinnern", style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Sobald du echte Wörter gesammelt hast, kannst du sie hier ruhig wiederholen.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = CatchLingoColor.TextMuted,
+                        )
+                    }
+                }
+            }
+        } else {
+            StaggeredEntrance(index = 0) {
+                ReviewPracticeCard(
+                    selectedMode = selectedMode,
+                    word = reviewWords.first(),
+                    onFeedback = onFeedback,
                 )
             }
+            StaggeredEntrance(index = 1) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ModeCard(
+                        mode = ReviewMode.Easy,
+                        selected = selectedMode == ReviewMode.Easy,
+                        icon = Icons.Outlined.Image,
+                        onClick = { selectedMode = ReviewMode.Easy },
+                        modifier = Modifier.weight(1f),
+                    )
+                    ModeCard(
+                        mode = ReviewMode.Hard,
+                        selected = selectedMode == ReviewMode.Hard,
+                        icon = Icons.Outlined.QuestionMark,
+                        onClick = { selectedMode = ReviewMode.Hard },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            StaggeredEntrance(index = 2) {
+                CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
+                    Text(text = "Sanftes Erinnern", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Review bleibt eine ruhige Hilfe für echte Funde, kein Schulmodus und kein Drucksystem.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = CatchLingoColor.TextMuted,
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    CatchLingoButton(
+                        text = "Später erinnern",
+                        onClick = {
+                            onFeedback("Alles gut. CatchLingo erinnert dich später sanft daran.")
+                        },
+                        style = CatchLingoButtonStyle.Quiet,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
         }
+    }
+}
 
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ModeCard(
-                mode = ReviewMode.Easy,
-                selected = selectedMode == ReviewMode.Easy,
-                icon = Icons.Outlined.Image,
-                onClick = { selectedMode = ReviewMode.Easy },
-                modifier = Modifier.weight(1f),
+@Composable
+private fun ReviewEmptyState() {
+    CatchLingoHeroCard(modifier = Modifier.fillMaxWidth()) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            MiniPill(
+                text = "Noch nichts zu wiederholen",
+                color = CatchLingoColor.GreenSoft,
+                contentColor = CatchLingoColor.GreenDeep,
             )
-            ModeCard(
-                mode = ReviewMode.Hard,
-                selected = selectedMode == ReviewMode.Hard,
-                icon = Icons.Outlined.QuestionMark,
-                onClick = { selectedMode = ReviewMode.Hard },
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
-            Text(text = "Sanftes Erinnern", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = "Review bleibt eine ruhige Hilfe für echte Funde, kein Schulmodus und kein Drucksystem.",
+                text = "Erst entdecken, dann erinnern",
+                style = MaterialTheme.typography.headlineMedium,
+                color = CatchLingoColor.GreenDeep,
+            )
+            Text(
+                text = "Review wird aktiv, sobald dein Wörterbuch echte Funde enthält.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CatchLingoColor.TextMuted,
             )
+            Spacer(modifier = Modifier.height(18.dp))
+            Box(contentAlignment = Alignment.BottomEnd) {
+                Box(
+                    modifier = Modifier
+                        .size(168.dp)
+                        .clip(CircleShape)
+                        .background(CatchLingoColor.GreenSoft.copy(alpha = 0.72f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.MenuBook,
+                        contentDescription = null,
+                        tint = CatchLingoColor.Green,
+                        modifier = Modifier.size(52.dp),
+                    )
+                }
+                Image(
+                    painter = painterResource(R.drawable.welcome_cat),
+                    contentDescription = null,
+                    modifier = Modifier.size(76.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewPracticeCard(
+    selectedMode: ReviewMode,
+    word: String,
+    onFeedback: (String) -> Unit,
+) {
+    CatchLingoHeroCard(modifier = Modifier.fillMaxWidth()) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            MiniPill(
+                text = selectedMode.title,
+                color = selectedMode.softColor(),
+                contentColor = selectedMode.accentColor(),
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = selectedMode.headline,
+                style = MaterialTheme.typography.headlineMedium,
+                color = selectedMode.accentColor(),
+            )
+            Text(text = selectedMode.subtitle, style = MaterialTheme.typography.bodyMedium, color = CatchLingoColor.TextMuted)
             Spacer(modifier = Modifier.height(14.dp))
+            ReviewPrompt(mode = selectedMode, word = word)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = selectedMode.helperText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = CatchLingoColor.TextPrimary,
+            )
+            Spacer(modifier = Modifier.height(18.dp))
             CatchLingoButton(
-                text = "Später erinnern",
+                text = "Starten",
                 onClick = {
-                    onFeedback("Alles gut. CatchLingo erinnert dich später sanft daran.")
+                    onFeedback("${selectedMode.title} ist bereit.")
                 },
-                style = CatchLingoButtonStyle.Quiet,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -129,7 +215,7 @@ fun ReviewScreen(
 }
 
 @Composable
-private fun ReviewPrompt(mode: ReviewMode) {
+private fun ReviewPrompt(mode: ReviewMode, word: String) {
     Box(contentAlignment = Alignment.BottomEnd) {
         Box(
             modifier = Modifier
@@ -155,7 +241,7 @@ private fun ReviewPrompt(mode: ReviewMode) {
                 }
 
                 ReviewMode.Hard -> Text(
-                    text = "kopi",
+                    text = word,
                     style = MaterialTheme.typography.headlineLarge,
                     color = mode.accentColor(),
                 )
@@ -180,7 +266,7 @@ private fun ModeCard(
 ) {
     val haptics = rememberCatchLingoHaptics()
     CatchLingoCard(
-        modifier = modifier.clickable {
+        modifier = modifier.catchLingoTactileClickable {
             haptics.softTick()
             onClick()
         },
