@@ -101,6 +101,7 @@ import de.valentinho13.catchlingo.data.DiscoveredWord
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.CatchLingoMotion
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoButton
+import de.valentinho13.catchlingo.designsystem.components.CatchLingoButtonStyle
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoHeroCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoSpecimenCard
@@ -285,7 +286,28 @@ private fun ExploreScreen(
     var magnetWord by remember { mutableStateOf<DiscoveredWord?>(null) }
     var caughtWord by remember { mutableStateOf<DiscoveredWord?>(null) }
     var pendingConfirmation by remember { mutableStateOf<PendingDiscoveryConfirmation?>(null) }
+    var correctionHistory by remember { mutableStateOf(DiscoveryCorrectionHistory()) }
     var catchVersion by remember { mutableIntStateOf(0) }
+    val confirmWord: (PendingDiscoveryConfirmation, VocabularyMatch?) -> Unit = { confirmation, selectedMatch ->
+        correctionHistory = correctionHistory.add(
+            DiscoveryCorrectionEvent(
+                timestampMillis = System.currentTimeMillis(),
+                labels = confirmation.originalLabels,
+                shownCandidateIds = confirmation.candidates.map { it.match.id },
+                selectedCandidateId = selectedMatch?.id,
+            ),
+        )
+        pendingConfirmation = null
+        if (selectedMatch != null) {
+            val word = selectedMatch.toDiscoveredWord(System.currentTimeMillis())
+            if (onWordCollected(word)) {
+                haptics.softTick()
+                magnetWord = word
+                caughtWord = null
+                catchVersion += 1
+            }
+        }
+    }
     val cameraPlaceholderAlpha by animateFloatAsState(
         targetValue = if (hasCameraPermission && cameraStreaming) 0f else 1f,
         animationSpec = tween(300, easing = CatchLingoMotion.EaseInOutWarm),
@@ -403,6 +425,23 @@ private fun ExploreScreen(
                 CatchConfirmationCard(word = word)
             }
         }
+        AnimatedVisibility(
+            visible = pendingConfirmation != null,
+            enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.98f),
+            exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.98f),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+        ) {
+            pendingConfirmation?.let { confirmation ->
+                CandidateConfirmationCard(
+                    confirmation = confirmation,
+                    onSelectCandidate = { match -> confirmWord(confirmation, match) },
+                    onSelectNone = { confirmWord(confirmation, null) },
+                )
+            }
+        }
         ExploreChrome(
             state = state,
             cameraStreaming = cameraStreaming,
@@ -411,6 +450,51 @@ private fun ExploreScreen(
             onLeaveExplore = onLeaveExplore,
             modifier = Modifier.fillMaxSize(),
         )
+    }
+}
+
+@Composable
+private fun CandidateConfirmationCard(
+    confirmation: PendingDiscoveryConfirmation,
+    onSelectCandidate: (VocabularyMatch) -> Unit,
+    onSelectNone: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CatchLingoCard(modifier = modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            MiniPill(
+                text = "Bitte bestätigen",
+                color = CatchLingoColor.AmberSoft,
+                contentColor = CatchLingoColor.AmberDeep,
+            )
+            Text(
+                text = "Was hast du gerade gefangen?",
+                style = MaterialTheme.typography.titleLarge,
+                color = CatchLingoColor.GreenDeep,
+            )
+            Text(
+                text = "Die Kamera ist sich nicht ganz sicher. Wähle den passenden Fund aus.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = CatchLingoColor.TextMuted,
+            )
+            confirmation.options.forEach { option ->
+                when (option) {
+                    is CandidateConfirmationOption.Candidate -> CatchLingoButton(
+                        text = "${option.match.word} · ${option.match.source}",
+                        onClick = { onSelectCandidate(option.match) },
+                        style = CatchLingoButtonStyle.Quiet,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    CandidateConfirmationOption.NoneOfThese -> CatchLingoButton(
+                        text = "Nicht dabei",
+                        onClick = onSelectNone,
+                        style = CatchLingoButtonStyle.Quiet,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
     }
 }
 
