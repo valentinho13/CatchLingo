@@ -101,11 +101,59 @@ class DiscoveryDiagnosticsLogTest {
         assertFalse(json.contains("bitmap"))
     }
 
+    @Test
+    fun objectDetectionMetadataIsSerializedAndSummarized() {
+        val history = DiscoveryDiagnosticsHistory()
+            .add(
+                sampleEvent(
+                    timestampMillis = 1L,
+                    objectDetection = ObjectDetectionDiagnostics(
+                        objectCount = 3,
+                        frameWidth = 1280,
+                        frameHeight = 720,
+                        selected = SelectedObjectTarget(
+                            box = NormalizedObjectBox(left = 0.25f, top = 0.20f, right = 0.75f, bottom = 0.80f),
+                            centerDistance = 0.08f,
+                            areaRatio = 0.30f,
+                            hasCategoryLabels = true,
+                            reason = ObjectTargetSelectionReason.Center,
+                        ),
+                    ),
+                ),
+            )
+            .add(
+                sampleEvent(
+                    timestampMillis = 2L,
+                    objectDetection = ObjectDetectionDiagnostics(
+                        objectCount = 0,
+                        frameWidth = 1280,
+                        frameHeight = 720,
+                        selected = null,
+                    ),
+                ),
+            )
+
+        val json = history.exportJson()
+        assertTrue(json.contains("\"objectDetection\""))
+        assertTrue(json.contains("\"objectCount\":3"))
+        assertTrue(json.contains("\"selectionReason\":\"center\""))
+        assertTrue(json.contains("\"hasCategoryLabels\":true"))
+        assertTrue(json.contains("\"box\""))
+
+        val text = history.exportText()
+        assertTrue(text.contains("Object detection:"))
+        assertTrue(text.contains("- selected target exists: 1/2"))
+        assertTrue(text.contains("- average selected area ratio: 0.3000"))
+        assertTrue(text.contains("  - 0: 1"))
+        assertTrue(text.contains("  - 3: 1"))
+    }
+
     private fun sampleEvent(
         timestampMillis: Long = 42L,
         decision: DiscoveryDiagnosticDecision = DiscoveryDiagnosticDecision.AutoAccepted,
         selectedCandidateId: String? = null,
         finalCandidateId: String? = "ponsel",
+        objectDetection: ObjectDetectionDiagnostics? = null,
     ): DiscoveryDiagnosticEvent = DiscoveryDiagnosticEvent(
         timestampMillis = timestampMillis,
         labels = listOf(MlLabelObservation(text = "Mobile phone", confidence = 0.92f)),
@@ -124,5 +172,6 @@ class DiscoveryDiagnosticsLogTest {
         selectedCandidateId = selectedCandidateId,
         decision = decision,
         reasons = listOf("RiskyWord"),
+        objectDetection = objectDetection,
     )
 }

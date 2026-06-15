@@ -92,10 +92,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.ImageLabeler
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
+import com.google.mlkit.vision.objects.DetectedObject
+import com.google.mlkit.vision.objects.ObjectDetection
+import com.google.mlkit.vision.objects.ObjectDetector
+import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
 import de.valentinho13.catchlingo.R
 import de.valentinho13.catchlingo.data.DiscoveredWord
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
@@ -647,6 +652,15 @@ private fun CameraXPreviewLayer(
     val imageLabeler = remember {
         ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
     }
+    val objectDetector = remember {
+        ObjectDetection.getClient(
+            ObjectDetectorOptions.Builder()
+                .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
+                .enableMultipleObjects()
+                .enableClassification()
+                .build(),
+        )
+    }
     val analysisExecutor = remember {
         Executors.newSingleThreadExecutor()
     }
@@ -659,7 +673,7 @@ private fun CameraXPreviewLayer(
         modifier = modifier,
     )
 
-    DisposableEffect(context, lifecycleOwner, previewView, imageLabeler, analysisExecutor, discoveryGate) {
+    DisposableEffect(context, lifecycleOwner, previewView, imageLabeler, objectDetector, analysisExecutor, discoveryGate) {
         onStreamStateChanged(false)
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         val streamObserver = Observer<PreviewView.StreamState> { streamState ->
@@ -681,6 +695,7 @@ private fun CameraXPreviewLayer(
                                 analyzeDiscoveryFrame(
                                     imageProxy = imageProxy,
                                     imageLabeler = imageLabeler,
+                                    objectDetector = objectDetector,
                                     discoveryGate = discoveryGate,
                                     mlDiagnosticsEnabled = mlDiagnosticsEnabled,
                                     onMlUnavailable = onMlUnavailable,
@@ -708,6 +723,7 @@ private fun CameraXPreviewLayer(
             previewView.previewStreamState.removeObserver(streamObserver)
             onStreamStateChanged(false)
             imageLabeler.close()
+            objectDetector.close()
             analysisExecutor.shutdown()
             if (cameraProviderFuture.isDone) {
                 runCatching {
@@ -721,6 +737,7 @@ private fun CameraXPreviewLayer(
 private fun analyzeDiscoveryFrame(
     imageProxy: ImageProxy,
     imageLabeler: ImageLabeler,
+    objectDetector: ObjectDetector,
     discoveryGate: DiscoveryGate,
     mlDiagnosticsEnabled: Boolean,
     onMlUnavailable: () -> Unit,
@@ -743,8 +760,29 @@ private fun analyzeDiscoveryFrame(
     }
 
     val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-    imageLabeler.process(image)
-        .addOnSuccessListener { labels ->
+    val objectDetectionTask = objectDetector.process(image)
+    val imageLabelingTask = imageLabeler.process(image)
+    Tasks.whenAllComplete(objectDetectionTask, imageLabelingTask)
+        .addOnSuccessListener {
+            if (!imageLabelingTask.isSuccessful) {
+                onMlUnavailable()
+                return@addOnSuccessListener
+            }
+
+            val labels = imageLabelingTask.result.orEmpty()
+            val objectDiagnostics = if (objectDetectionTask.isSuccessful) {
+                objectDetectionTask.result?.toObjectDetectionDiagnostics(
+                    frameWidth = imageProxy.rotatedFrameWidth(),
+                    frameHeight = imageProxy.rotatedFrameHeight(),
+                )
+            } else {
+                null
+            }
+            logObjectDetectionDiagnostics(
+                diagnostics = objectDiagnostics,
+                enabled = mlDiagnosticsEnabled,
+            )
+
             val originalLabels = labels.map { label ->
                 MlLabelObservation(text = label.text, confidence = label.confidence)
             }
@@ -843,6 +881,7 @@ private fun analyzeDiscoveryFrame(
                             addAll(decision.diagnosticReasons())
                         }
                     },
+                    objectDetection = objectDiagnostics,
                 ),
             )
 
@@ -889,6 +928,30 @@ private fun List<com.google.mlkit.vision.label.ImageLabel>.debugRecognitionLine(
     }
     return "Erkannt: $labelSummary"
 }
+
+private fun List<DetectedObject>.toObjectDetectionDiagnostics(
+    frameWidth: Int,
+    frameHeight: Int,
+): ObjectDetectionDiagnostics =
+    selectObjectDetectionTarget(
+        candidates = map { detectedObject ->
+            val box = detectedObject.boundingBox
+            ObjectDetectionCandidateBox(
+                left = box.left,
+                top = box.top,
+                right = box.right,
+                bottom = box.bottom,
+                hasCategoryLabels = detectedObject.labels.isNotEmpty(),
+            )
+        },
+        frameSize = ObjectDetectionFrameSize(width = frameWidth, height = frameHeight),
+    )
+
+private fun ImageProxy.rotatedFrameWidth(): Int =
+    if (imageInfo.rotationDegrees == 90 || imageInfo.rotationDegrees == 270) height else width
+
+private fun ImageProxy.rotatedFrameHeight(): Int =
+    if (imageInfo.rotationDegrees == 90 || imageInfo.rotationDegrees == 270) width else height
 
 private enum class DiscoveryDecisionStatus {
     Accepted,
@@ -937,6 +1000,34 @@ private fun logMlDiagnostics(
         ML_LOG_TAG,
         "labels=[$topLabels] decision=${decision.describe()} confirmation=${pendingConfirmation.describe()}",
     )
+}
+
+private fun logObjectDetectionDiagnostics(
+    diagnostics: ObjectDetectionDiagnostics?,
+    enabled: Boolean,
+) {
+    if (!enabled) return
+
+    if (diagnostics == null) {
+        Log.d(ML_LOG_TAG, "ObjectDetection unavailable")
+        return
+    }
+
+    val selected = diagnostics.selected
+    if (selected == null) {
+        Log.d(ML_LOG_TAG, "ObjectDetection objects=${diagnostics.objectCount} selected=none")
+    } else {
+        Log.d(
+            ML_LOG_TAG,
+            "ObjectDetection objects=${diagnostics.objectCount} " +
+                "selected=${selected.reason.name.lowercase(Locale.US)} " +
+                "area=${selected.areaRatio.formatConfidence()} " +
+                "distance=${selected.centerDistance.formatConfidence()} " +
+                "box=${selected.box.compactString()} " +
+                "labels=${selected.hasCategoryLabels} " +
+                "frame=${diagnostics.frameWidth}x${diagnostics.frameHeight}",
+        )
+    }
 }
 
 private fun DiscoveryDecision.describe(): String = when (status) {

@@ -39,6 +39,7 @@ internal data class DiscoveryDiagnosticEvent(
     val selectedCandidateId: String?,
     val decision: DiscoveryDiagnosticDecision,
     val reasons: List<String> = emptyList(),
+    val objectDetection: ObjectDetectionDiagnostics? = null,
 ) {
     fun toJson(): String = buildString {
         append("{")
@@ -95,6 +96,10 @@ internal data class DiscoveryDiagnosticEvent(
         })
         append(",\"reasons\":")
         append(reasons.toJsonArray { reason -> reason.jsonQuoted() })
+        objectDetection?.let { diagnostics ->
+            append(",\"objectDetection\":")
+            append(diagnostics.toJson())
+        }
         append("}")
     }
 }
@@ -134,6 +139,21 @@ internal class DiscoveryDiagnosticsHistory(
         appendLine("Top mapped candidates:")
         entries.countFieldValues("id").take(12).forEach { (value, count) ->
             appendLine("- $value: $count")
+        }
+        appendLine()
+        appendLine("Object detection:")
+        val objectCountBuckets = entries.countNumericFieldValues("objectCount")
+        if (objectCountBuckets.isEmpty()) {
+            appendLine("- no object metadata")
+        } else {
+            appendLine("- selected target exists: ${entries.countSelectedObjectTargets()}/${entries.size}")
+            entries.averageNumericFieldValue("areaRatio")?.let { averageArea ->
+                appendLine("- average selected area ratio: ${String.format(Locale.US, "%.4f", averageArea)}")
+            }
+            appendLine("- object count buckets:")
+            objectCountBuckets.forEach { (value, count) ->
+                appendLine("  - $value: $count")
+            }
         }
         appendLine()
         appendLine("Raw JSON:")
@@ -204,6 +224,7 @@ internal fun buildDiagnosticEvent(
     finalCandidateId: String? = null,
     selectedCandidateId: String? = null,
     reasons: List<String> = emptyList(),
+    objectDetection: ObjectDetectionDiagnostics? = null,
 ): DiscoveryDiagnosticEvent = DiscoveryDiagnosticEvent(
     timestampMillis = timestampMillis,
     labels = labels.take(MaxDiagnosticLabels),
@@ -216,6 +237,7 @@ internal fun buildDiagnosticEvent(
     selectedCandidateId = selectedCandidateId,
     decision = decision,
     reasons = reasons,
+    objectDetection = objectDetection,
 )
 
 internal fun buildAlreadyKnownDiagnosticEvent(
@@ -232,6 +254,42 @@ internal fun buildAlreadyKnownDiagnosticEvent(
     decision = DiscoveryDiagnosticDecision.AlreadyKnown,
     reasons = reasons,
 )
+
+private fun ObjectDetectionDiagnostics.toJson(): String = buildString {
+    append("{")
+    appendJsonField("objectCount", objectCount)
+    append(",")
+    appendJsonField("frameWidth", frameWidth)
+    append(",")
+    appendJsonField("frameHeight", frameHeight)
+    append(",")
+    appendJsonField("selectionReason", selectionReason.name.lowercase(Locale.US))
+    append(",")
+    appendJsonField("hasSelectedTarget", selected != null)
+    selected?.let { target ->
+        append(",")
+        appendJsonField("centerDistance", target.centerDistance)
+        append(",")
+        appendJsonField("areaRatio", target.areaRatio)
+        append(",")
+        appendJsonField("hasCategoryLabels", target.hasCategoryLabels)
+        append(",\"box\":")
+        append(target.box.toJson())
+    }
+    append("}")
+}
+
+private fun NormalizedObjectBox.toJson(): String = buildString {
+    append("{")
+    appendJsonField("left", left)
+    append(",")
+    appendJsonField("top", top)
+    append(",")
+    appendJsonField("right", right)
+    append(",")
+    appendJsonField("bottom", bottom)
+    append("}")
+}
 
 private fun String.timestampMillisFromJson(): Long {
     val marker = "\"timestampMillis\":"
@@ -255,6 +313,29 @@ private fun List<String>.countFieldValues(fieldName: String): List<Pair<String, 
         .map { it.key to it.value }
 }
 
+private fun List<String>.countNumericFieldValues(fieldName: String): List<Pair<String, Int>> {
+    val regex = Regex("\"${Regex.escape(fieldName)}\":(-?\\d+)")
+    return flatMap { entry ->
+        regex.findAll(entry).map { match -> match.groupValues[1] }.toList()
+    }
+        .groupingBy { it }
+        .eachCount()
+        .entries
+        .sortedWith(compareBy<Map.Entry<String, Int>> { it.key.toIntOrNull() ?: Int.MAX_VALUE })
+        .map { it.key to it.value }
+}
+
+private fun List<String>.countSelectedObjectTargets(): Int =
+    count { it.contains("\"hasSelectedTarget\":true") }
+
+private fun List<String>.averageNumericFieldValue(fieldName: String): Double? {
+    val regex = Regex("\"${Regex.escape(fieldName)}\":(-?\\d+(?:\\.\\d+)?)")
+    val values = flatMap { entry ->
+        regex.findAll(entry).mapNotNull { match -> match.groupValues[1].toDoubleOrNull() }.toList()
+    }
+    return values.takeIf { it.isNotEmpty() }?.average()
+}
+
 private fun StringBuilder.appendJsonField(name: String, value: String?) {
     append("\"")
     append(name)
@@ -263,6 +344,13 @@ private fun StringBuilder.appendJsonField(name: String, value: String?) {
 }
 
 private fun StringBuilder.appendJsonField(name: String, value: Long) {
+    append("\"")
+    append(name)
+    append("\":")
+    append(value)
+}
+
+private fun StringBuilder.appendJsonField(name: String, value: Int) {
     append("\"")
     append(name)
     append("\":")
