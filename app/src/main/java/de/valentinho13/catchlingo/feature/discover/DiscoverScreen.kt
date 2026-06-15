@@ -284,6 +284,7 @@ private fun ExploreScreen(
     var mlUnavailable by remember { mutableStateOf(false) }
     var magnetWord by remember { mutableStateOf<DiscoveredWord?>(null) }
     var caughtWord by remember { mutableStateOf<DiscoveredWord?>(null) }
+    var pendingConfirmation by remember { mutableStateOf<PendingDiscoveryConfirmation?>(null) }
     var catchVersion by remember { mutableIntStateOf(0) }
     val cameraPlaceholderAlpha by animateFloatAsState(
         targetValue = if (hasCameraPermission && cameraStreaming) 0f else 1f,
@@ -351,12 +352,19 @@ private fun ExploreScreen(
                 },
                 onWordCollected = { word ->
                     mlUnavailable = false
+                    pendingConfirmation = null
                     if (onWordCollected(word)) {
                         haptics.softTick()
                         magnetWord = word
                         caughtWord = null
                         catchVersion += 1
                     }
+                },
+                onConfirmationPending = { confirmation ->
+                    mlUnavailable = false
+                    pendingConfirmation = confirmation
+                    magnetWord = null
+                    caughtWord = null
                 },
                 modifier = Modifier.fillMaxSize(),
             )
@@ -411,6 +419,7 @@ private fun CameraXPreviewLayer(
     onStreamStateChanged: (Boolean) -> Unit,
     onMlUnavailable: () -> Unit,
     onWordCollected: (DiscoveredWord) -> Unit,
+    onConfirmationPending: (PendingDiscoveryConfirmation) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -469,6 +478,7 @@ private fun CameraXPreviewLayer(
                                     mlDiagnosticsEnabled = mlDiagnosticsEnabled,
                                     onMlUnavailable = onMlUnavailable,
                                     onWordCollected = onWordCollected,
+                                    onConfirmationPending = onConfirmationPending,
                                 )
                             }
                         }
@@ -506,6 +516,7 @@ private fun analyzeDiscoveryFrame(
     mlDiagnosticsEnabled: Boolean,
     onMlUnavailable: () -> Unit,
     onWordCollected: (DiscoveredWord) -> Unit,
+    onConfirmationPending: (PendingDiscoveryConfirmation) -> Unit,
 ) {
     val now = System.currentTimeMillis()
     if (!discoveryGate.shouldAnalyze(now)) {
@@ -523,11 +534,14 @@ private fun analyzeDiscoveryFrame(
     val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
     imageLabeler.process(image)
         .addOnSuccessListener { labels ->
+            val originalLabels = labels.map { label ->
+                MlLabelObservation(text = label.text, confidence = label.confidence)
+            }
             val mappedLabels = labels.mapNotNull { label ->
                 mapLabelToVocabulary(label.text)?.let { match ->
-                    LabelCandidate(labelText = label.text, confidence = label.confidence, match = match)
+                    DiscoveryCandidate(labelText = label.text, confidence = label.confidence, match = match)
                 }
-            }
+            }.sortedByDescending { it.confidence }
             val bestEligible = mappedLabels
                 .asSequence()
                 .filter { it.confidence >= it.match.minConfidence }
@@ -539,16 +553,34 @@ private fun analyzeDiscoveryFrame(
                     nowMillis = System.currentTimeMillis(),
                 )
             } ?: DiscoveryDecision.Ignored
+            val pendingConfirmation = if (
+                decision.status == DiscoveryDecisionStatus.Accepted &&
+                decision.match != null
+            ) {
+                buildPendingConfirmation(
+                    originalLabels = originalLabels,
+                    candidates = mappedLabels,
+                    proposedWord = decision.match,
+                    acceptedConfidence = decision.confidence,
+                )
+            } else {
+                null
+            }
 
             logMlDiagnostics(
                 labels = labels,
                 mappedLabels = mappedLabels,
                 decision = decision,
+                pendingConfirmation = pendingConfirmation,
                 enabled = mlDiagnosticsEnabled,
             )
 
             if (decision.status == DiscoveryDecisionStatus.Accepted && decision.match != null) {
-                onWordCollected(decision.match.toDiscoveredWord(System.currentTimeMillis()))
+                if (pendingConfirmation == null) {
+                    onWordCollected(decision.match.toDiscoveredWord(System.currentTimeMillis()))
+                } else {
+                    onConfirmationPending(pendingConfirmation)
+                }
             }
         }
         .addOnFailureListener {
@@ -560,12 +592,6 @@ private fun analyzeDiscoveryFrame(
         }
 }
 
-private data class LabelCandidate(
-    val labelText: String,
-    val confidence: Float,
-    val match: VocabularyMatch,
-)
-
 private enum class DiscoveryDecisionStatus {
     Accepted,
     WaitingForStability,
@@ -576,6 +602,7 @@ private enum class DiscoveryDecisionStatus {
 private data class DiscoveryDecision(
     val status: DiscoveryDecisionStatus,
     val match: VocabularyMatch? = null,
+    val confidence: Float = 0f,
     val stableCount: Int = 0,
 ) {
     companion object {
@@ -585,8 +612,9 @@ private data class DiscoveryDecision(
 
 private fun logMlDiagnostics(
     labels: List<com.google.mlkit.vision.label.ImageLabel>,
-    mappedLabels: List<LabelCandidate>,
+    mappedLabels: List<DiscoveryCandidate>,
     decision: DiscoveryDecision,
+    pendingConfirmation: PendingDiscoveryConfirmation?,
     enabled: Boolean,
 ) {
     if (!enabled || labels.isEmpty()) return
@@ -606,7 +634,7 @@ private fun logMlDiagnostics(
         }
     Log.d(
         ML_LOG_TAG,
-        "labels=[$topLabels] decision=${decision.describe()}",
+        "labels=[$topLabels] decision=${decision.describe()} confirmation=${pendingConfirmation.describe()}",
     )
 }
 
@@ -618,6 +646,13 @@ private fun DiscoveryDecision.describe(): String = when (status) {
     DiscoveryDecisionStatus.DuplicateBlocked -> "duplicate-blocked ${match?.id}/${match?.word}"
     DiscoveryDecisionStatus.Ignored -> "ignored"
 }
+
+private fun PendingDiscoveryConfirmation?.describe(): String =
+    if (this == null) {
+        "none"
+    } else {
+        "pending ${proposedWord.id}/${proposedWord.word} reasons=${reasons.joinToString("+")}"
+    }
 
 private fun Float.formatConfidence(): String = String.format(Locale.US, "%.2f", this)
 
@@ -651,6 +686,7 @@ private class DiscoveryGate {
             return DiscoveryDecision(
                 status = DiscoveryDecisionStatus.DuplicateBlocked,
                 match = match,
+                confidence = confidence,
             )
         }
 
@@ -666,6 +702,7 @@ private class DiscoveryGate {
             return DiscoveryDecision(
                 status = DiscoveryDecisionStatus.WaitingForStability,
                 match = match,
+                confidence = confidence,
                 stableCount = candidateCount,
             )
         }
@@ -677,6 +714,7 @@ private class DiscoveryGate {
         return DiscoveryDecision(
             status = DiscoveryDecisionStatus.Accepted,
             match = match,
+            confidence = confidence,
             stableCount = REQUIRED_STABLE_MATCHES,
         )
     }
