@@ -748,15 +748,20 @@ private fun analyzeDiscoveryFrame(
             val originalLabels = labels.map { label ->
                 MlLabelObservation(text = label.text, confidence = label.confidence)
             }
-            val mappedLabels = labels.mapNotNull { label ->
+            val directCandidates = labels.mapNotNull { label ->
                 mapLabelToVocabulary(label.text)?.let { match ->
                     DiscoveryCandidate(labelText = label.text, confidence = label.confidence, match = match)
                 }
-            }.sortedByDescending { it.confidence }
+            }
+            val rankedCandidates = rankDiscoveryCandidates(
+                labels = originalLabels,
+                directCandidates = directCandidates,
+            )
+            val mappedLabels = rankedCandidates.candidates
             val bestEligible = mappedLabels
                 .asSequence()
-                .filter { it.confidence >= it.match.minConfidence }
-                .maxByOrNull { it.confidence }
+                .filter { it.canAutoCatch() }
+                .maxByOrNull { it.score }
             val decision = bestEligible?.let { candidate ->
                 discoveryGate.accept(
                     match = candidate.match,
@@ -777,19 +782,28 @@ private fun analyzeDiscoveryFrame(
             } else {
                 null
             }
-            val debugPendingConfirmation = if (
-                mlDiagnosticsEnabled &&
+            val rankedPendingConfirmation = if (
                 acceptedPendingConfirmation == null &&
                 decision.status != DiscoveryDecisionStatus.DuplicateBlocked
             ) {
+                val confirmationCandidates = mappedLabels
+                    .filter { candidate ->
+                        candidate.requiresConfirmation ||
+                            (
+                                mlDiagnosticsEnabled &&
+                                    candidate.confidence < candidate.match.minConfidence &&
+                                    candidate.confidence >= DEBUG_CONFIRMATION_MIN_CONFIDENCE
+                                )
+                    }
+                    .filter { it.confidence >= CONFIRMATION_MIN_CONFIDENCE }
                 buildDebugPendingConfirmation(
                     originalLabels = originalLabels,
-                    candidates = buildDebugConfirmationCandidates(labels = labels, mappedLabels = mappedLabels),
+                    candidates = confirmationCandidates,
                 )
             } else {
                 null
             }
-            val pendingConfirmation = acceptedPendingConfirmation ?: debugPendingConfirmation
+            val pendingConfirmation = acceptedPendingConfirmation ?: rankedPendingConfirmation
 
             onDebugRecognition(
                 if (mlDiagnosticsEnabled && labels.isNotEmpty() && pendingConfirmation == null) {
@@ -821,8 +835,14 @@ private fun analyzeDiscoveryFrame(
                     } else {
                         null
                     },
-                    reasons = pendingConfirmation?.reasons?.map { it.name }
-                        ?: decision.diagnosticReasons(),
+                    reasons = buildList {
+                        add("context=${rankedCandidates.context.name}")
+                        if (pendingConfirmation != null) {
+                            addAll(pendingConfirmation.reasons.map { it.name })
+                        } else {
+                            addAll(decision.diagnosticReasons())
+                        }
+                    },
                 ),
             )
 
@@ -832,6 +852,8 @@ private fun analyzeDiscoveryFrame(
                 } else {
                     onConfirmationPending(pendingConfirmation)
                 }
+            } else if (pendingConfirmation != null) {
+                onConfirmationPending(pendingConfirmation)
             }
         }
         .addOnFailureListener {
@@ -905,7 +927,10 @@ private fun logMlDiagnostics(
                 "${label.text}:$confidence -> unmapped"
             } else {
                 val thresholdState = if (mapped.confidence >= mapped.match.minConfidence) "eligible" else "below-threshold"
-                "${label.text}:$confidence -> ${mapped.match.id}/${mapped.match.word}/${mapped.match.category} $thresholdState"
+                "${label.text}:$confidence -> ${mapped.match.id}/${mapped.match.word}/${mapped.match.category} " +
+                    "$thresholdState score=${mapped.score.formatConfidence()} context=${mapped.context.name} " +
+                    "boost=${mapped.contextBoost.formatConfidence()} risk=${mapped.riskPenalty.formatConfidence()} " +
+                    "confirm=${mapped.requiresConfirmation}"
             }
         }
     Log.d(
@@ -1024,6 +1049,8 @@ private class DiscoveryGate {
 
 private const val ML_DIAGNOSTIC_LABEL_LIMIT = 5
 private const val REQUIRED_STABLE_MATCHES = 2
+private const val CONFIRMATION_MIN_CONFIDENCE = 0.50f
+private const val DEBUG_CONFIRMATION_MIN_CONFIDENCE = 0.42f
 
 @Composable
 private fun WarmCameraGradeOverlay(modifier: Modifier = Modifier) {

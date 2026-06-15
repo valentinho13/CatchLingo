@@ -21,6 +21,13 @@ internal data class DiscoveryDiagnosticCandidate(
     val category: String,
     val labelText: String,
     val confidence: Float,
+    val score: Float = confidence,
+    val matchedLabel: String = labelText,
+    val supportingLabels: List<String> = listOf(labelText),
+    val context: String = DetectionContext.Generic.name,
+    val contextBoost: Float = 0f,
+    val riskPenalty: Float = 0f,
+    val requiresConfirmation: Boolean = false,
 )
 
 internal data class DiscoveryDiagnosticEvent(
@@ -69,6 +76,20 @@ internal data class DiscoveryDiagnosticEvent(
                 appendJsonField("labelText", candidate.labelText)
                 append(",")
                 appendJsonField("confidence", candidate.confidence)
+                append(",")
+                appendJsonField("score", candidate.score)
+                append(",")
+                appendJsonField("matchedLabel", candidate.matchedLabel)
+                append(",\"supportingLabels\":")
+                append(candidate.supportingLabels.toJsonArray { label -> label.jsonQuoted() })
+                append(",")
+                appendJsonField("context", candidate.context)
+                append(",")
+                appendJsonField("contextBoost", candidate.contextBoost)
+                append(",")
+                appendJsonField("riskPenalty", candidate.riskPenalty)
+                append(",")
+                appendJsonField("requiresConfirmation", candidate.requiresConfirmation)
                 append("}")
             }
         })
@@ -165,6 +186,13 @@ internal fun DiscoveryCandidate.toDiagnosticCandidate(): DiscoveryDiagnosticCand
         category = match.category,
         labelText = labelText,
         confidence = confidence,
+        score = score,
+        matchedLabel = matchedLabel,
+        supportingLabels = supportingLabels,
+        context = context.name,
+        contextBoost = contextBoost,
+        riskPenalty = riskPenalty,
+        requiresConfirmation = requiresConfirmation,
     )
 
 internal fun buildDiagnosticEvent(
@@ -246,6 +274,13 @@ private fun StringBuilder.appendJsonField(name: String, value: Float) {
     append(name)
     append("\":")
     append(String.format(Locale.US, "%.4f", value))
+}
+
+private fun StringBuilder.appendJsonField(name: String, value: Boolean) {
+    append("\"")
+    append(name)
+    append("\":")
+    append(value)
 }
 
 private fun String.jsonQuoted(): String = buildString {

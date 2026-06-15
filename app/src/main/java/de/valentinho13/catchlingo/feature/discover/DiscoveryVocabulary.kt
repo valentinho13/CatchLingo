@@ -20,8 +20,11 @@ internal fun mapLabelToVocabulary(label: String): VocabularyMatch? {
 internal fun mapLabelToSoftVocabulary(label: String): VocabularyMatch? {
     val normalized = label.lowercase()
     val targetId = SoftConfirmationLabelIds[normalized] ?: return null
-    return Vocabulary.entries.firstOrNull { entry -> entry.id == targetId }?.toMatch()
+    return vocabularyById(targetId)
 }
+
+internal fun vocabularyById(id: String): VocabularyMatch? =
+    Vocabulary.entries.firstOrNull { entry -> entry.id == id }?.toMatch()
 
 internal fun VocabularyMatch.toDiscoveredWord(nowMillis: Long): DiscoveredWord = DiscoveredWord(
     id = id,

@@ -9,6 +9,13 @@ internal data class DiscoveryCandidate(
     val labelText: String,
     val confidence: Float,
     val match: VocabularyMatch,
+    val score: Float = confidence,
+    val matchedLabel: String = labelText,
+    val supportingLabels: List<String> = listOf(labelText),
+    val context: DetectionContext = DetectionContext.Generic,
+    val contextBoost: Float = 0f,
+    val riskPenalty: Float = 0f,
+    val requiresConfirmation: Boolean = false,
 )
 
 internal enum class ConfirmationReason {
@@ -40,8 +47,12 @@ internal fun buildPendingConfirmation(
     acceptedConfidence: Float,
 ): PendingDiscoveryConfirmation? {
     val reasons = buildSet {
+        val proposedCandidate = candidates.firstOrNull { it.match.id == proposedWord.id }
         if (proposedWord.id in RiskyConfirmationWordIds) {
             add(ConfirmationReason.RiskyWord)
+        }
+        if (proposedCandidate?.requiresConfirmation == true) {
+            add(ConfirmationReason.SoftCandidate)
         }
         if (acceptedConfidence - proposedWord.minConfidence <= NearThresholdMargin) {
             add(ConfirmationReason.NearThreshold)
