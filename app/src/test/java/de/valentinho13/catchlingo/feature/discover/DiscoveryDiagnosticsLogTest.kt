@@ -53,6 +53,38 @@ class DiscoveryDiagnosticsLogTest {
     }
 
     @Test
+    fun exportSummaryReportsEventCountAndDecisions() {
+        val history = DiscoveryDiagnosticsHistory()
+            .add(sampleEvent(timestampMillis = 1L, decision = DiscoveryDiagnosticDecision.AutoAccepted))
+            .add(sampleEvent(timestampMillis = 2L, decision = DiscoveryDiagnosticDecision.UserConfirmed))
+
+        val export = history.exportText()
+        assertTrue(export.contains("Events: 2"))
+        assertTrue(export.contains("- AutoAccepted: 1"))
+        assertTrue(export.contains("- UserConfirmed: 1"))
+        assertTrue(export.contains("Raw JSON:"))
+    }
+
+    @Test
+    fun alreadyKnownEventCanBeRepresented() {
+        val event = DiscoveryDiagnosticEvent(
+            timestampMillis = 9L,
+            labels = emptyList(),
+            candidates = emptyList(),
+            proposedCandidateId = "bunga",
+            finalCandidateId = "bunga",
+            selectedCandidateId = null,
+            decision = DiscoveryDiagnosticDecision.AlreadyKnown,
+            reasons = listOf("repositoryDuplicate"),
+        )
+
+        val json = event.toJson()
+        assertTrue(json.contains("\"decision\":\"AlreadyKnown\""))
+        assertTrue(json.contains("\"finalCandidateId\":\"bunga\""))
+        assertTrue(json.contains("repositoryDuplicate"))
+    }
+
+    @Test
     fun exportSerializationContainsDiagnosticsButNoImageData() {
         val history = DiscoveryDiagnosticsHistory().add(
             sampleEvent(decision = DiscoveryDiagnosticDecision.PendingConfirmation),

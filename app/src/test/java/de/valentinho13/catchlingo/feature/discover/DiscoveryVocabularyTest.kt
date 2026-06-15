@@ -49,6 +49,7 @@ class DiscoveryVocabularyTest {
         assertMinConfidence("chair", 0.86f)
         assertMinConfidence("mobile phone", 0.90f)
         assertMinConfidence("dog", 0.86f)
+        assertMinConfidence("sink", 0.92f)
     }
 
     @Test
@@ -57,6 +58,8 @@ class DiscoveryVocabularyTest {
         assertEligible("mobile phone", 0.90f)
         assertNotEligible("chair", 0.85f)
         assertEligible("chair", 0.86f)
+        assertNotEligible("sink", 0.91f)
+        assertEligible("sink", 0.92f)
     }
 
     @Test
@@ -103,6 +106,8 @@ class DiscoveryVocabularyTest {
         assertNull(mapLabelToVocabulary("pants"))
         assertNull(mapLabelToVocabulary("ovenware"))
         assertNull(mapLabelToVocabulary("bathroom sink"))
+        assertNull(mapLabelToVocabulary("product"))
+        assertNull(mapLabelToVocabulary("object"))
     }
 
     private fun assertVocabulary(

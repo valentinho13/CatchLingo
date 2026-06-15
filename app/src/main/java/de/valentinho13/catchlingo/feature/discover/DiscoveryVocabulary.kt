@@ -17,6 +17,12 @@ internal fun mapLabelToVocabulary(label: String): VocabularyMatch? {
     }?.toMatch()
 }
 
+internal fun mapLabelToSoftVocabulary(label: String): VocabularyMatch? {
+    val normalized = label.lowercase()
+    val targetId = SoftConfirmationLabelIds[normalized] ?: return null
+    return Vocabulary.entries.firstOrNull { entry -> entry.id == targetId }?.toMatch()
+}
+
 internal fun VocabularyMatch.toDiscoveredWord(nowMillis: Long): DiscoveredWord = DiscoveredWord(
     id = id,
     word = word,
@@ -152,6 +158,7 @@ private enum class Vocabulary(
         source = "sink",
         category = "Essen & Trinken",
         labels = setOf("sink", "kitchen sink"),
+        minConfidence = 0.92f,
     ),
     Faucet(
         id = "keran",
@@ -536,4 +543,15 @@ private val ExactLabelMatchIds = setOf(
     "ponsel",
     "wajan",
     "wastafel",
+)
+
+private val SoftConfirmationLabelIds = mapOf(
+    "soup bowl" to "mangkuk",
+    "container" to "mangkuk",
+    "dish" to "piring",
+    "cup" to "cangkir",
+    "mug" to "cangkir",
+    "water bottle" to "botol",
+    "flower" to "bunga",
+    "plant" to "tanaman",
 )

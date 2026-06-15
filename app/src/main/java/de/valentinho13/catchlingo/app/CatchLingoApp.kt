@@ -82,14 +82,21 @@ fun CatchLingoApp() {
                     actionIcon = Icons.Outlined.Settings,
                     onActionClick = {
                         if (diagnosticsExportEnabled) {
+                            val eventCount = diagnosticsRepository.eventCount()
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             clipboard.setPrimaryClip(
                                 ClipData.newPlainText(
                                     "CatchLingo ML diagnostics",
-                                    diagnosticsRepository.exportJson(),
+                                    diagnosticsRepository.exportText(),
                                 ),
                             )
-                            showFeedback("ML-Diagnose wurde in die Zwischenablage kopiert.")
+                            showFeedback(
+                                if (eventCount == 0) {
+                                    "Keine Diagnose-Einträge vorhanden."
+                                } else {
+                                    "Diagnose kopiert: $eventCount Events."
+                                },
+                            )
                         } else {
                             showFeedback("Einstellungen kommen bald in einer ruhigen, kleinen Ansicht.")
                         }

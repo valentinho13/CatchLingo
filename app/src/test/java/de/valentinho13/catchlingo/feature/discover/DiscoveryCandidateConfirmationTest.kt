@@ -23,6 +23,20 @@ class DiscoveryCandidateConfirmationTest {
     }
 
     @Test
+    fun sinkRequiresConfirmationEvenAtHighConfidence() {
+        val sink = requireNotNull(mapLabelToVocabulary("sink"))
+        val pending = buildPendingConfirmation(
+            originalLabels = listOf(MlLabelObservation("Sink", 0.95f)),
+            candidates = listOf(DiscoveryCandidate("Sink", 0.95f, sink)),
+            proposedWord = sink,
+            acceptedConfidence = 0.95f,
+        )
+
+        requireNotNull(pending)
+        assertTrue(ConfirmationReason.RiskyWord in pending.reasons)
+    }
+
+    @Test
     fun nonRiskyConfidentMappedWordsCanAutoCatch() {
         val book = requireNotNull(mapLabelToVocabulary("book"))
         val pending = buildPendingConfirmation(
@@ -47,6 +61,20 @@ class DiscoveryCandidateConfirmationTest {
 
         requireNotNull(pending)
         assertTrue(ConfirmationReason.NearThreshold in pending.reasons)
+    }
+
+    @Test
+    fun softCandidatePathRequiresConfirmation() {
+        val bowl = requireNotNull(mapLabelToSoftVocabulary("soup bowl"))
+        val pending = buildDebugPendingConfirmation(
+            originalLabels = listOf(MlLabelObservation("Soup bowl", 0.58f)),
+            candidates = listOf(DiscoveryCandidate("Soup bowl", 0.58f, bowl)),
+        )
+
+        requireNotNull(pending)
+        assertTrue(pending.requiresConfirmation)
+        assertTrue(ConfirmationReason.SoftCandidate in pending.reasons)
+        assertTrue(CandidateConfirmationOption.NoneOfThese in pending.options)
     }
 
     @Test

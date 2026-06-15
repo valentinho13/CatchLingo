@@ -15,6 +15,7 @@ internal enum class ConfirmationReason {
     RiskyWord,
     NearThreshold,
     AmbiguousLabels,
+    SoftCandidate,
 }
 
 internal sealed interface CandidateConfirmationOption {
@@ -69,6 +70,24 @@ internal fun buildPendingConfirmation(
     )
 }
 
+internal fun buildDebugPendingConfirmation(
+    originalLabels: List<MlLabelObservation>,
+    candidates: List<DiscoveryCandidate>,
+): PendingDiscoveryConfirmation? {
+    val distinctCandidates = candidates
+        .distinctBy { it.match.id }
+        .take(MaxConfirmationCandidates)
+    val proposedWord = distinctCandidates.firstOrNull()?.match ?: return null
+    return PendingDiscoveryConfirmation(
+        originalLabels = originalLabels.take(MaxLoggedLabels),
+        candidates = distinctCandidates,
+        proposedWord = proposedWord,
+        reasons = setOf(ConfirmationReason.SoftCandidate),
+        options = distinctCandidates.map { CandidateConfirmationOption.Candidate(it.match) } +
+            CandidateConfirmationOption.NoneOfThese,
+    )
+}
+
 private fun List<DiscoveryCandidate>.hasAmbiguousCompetingLabels(proposedWord: VocabularyMatch): Boolean {
     val proposed = firstOrNull { it.match.id == proposedWord.id } ?: return false
     return any { candidate ->
@@ -95,7 +114,7 @@ internal class DiscoveryCorrectionHistory(
     fun entries(): List<DiscoveryCorrectionEvent> = events
 }
 
-private val RiskyConfirmationWordIds = setOf("anjing", "gelas", "kursi", "meja", "ponsel")
+private val RiskyConfirmationWordIds = setOf("anjing", "gelas", "kursi", "meja", "ponsel", "wastafel")
 private const val NearThresholdMargin = 0.04f
 private const val AmbiguousConfidenceMargin = 0.08f
 private const val MaxConfirmationCandidates = 4

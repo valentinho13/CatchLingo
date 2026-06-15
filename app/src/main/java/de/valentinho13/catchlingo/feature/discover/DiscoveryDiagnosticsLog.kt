@@ -9,6 +9,7 @@ internal enum class DiscoveryDiagnosticDecision {
     PendingConfirmation,
     UserConfirmed,
     UserRejectedNoneOfThese,
+    AlreadyKnown,
     Ignored,
     DuplicateBlocked,
 }
@@ -86,11 +87,37 @@ internal class DiscoveryDiagnosticsHistory(
 
     fun rawEntries(): List<String> = rawEvents.sortedBy { it.timestampMillisFromJson() }
 
+    fun eventCount(): Int = rawEntries().size
+
     fun exportJson(): String = rawEntries().joinToString(
         prefix = "[",
         postfix = "]",
         separator = ",",
     )
+
+    fun exportText(): String = buildString {
+        val entries = rawEntries()
+        appendLine("CatchLingo ML Diagnostics")
+        appendLine("Events: ${entries.size}")
+        appendLine()
+        appendLine("Decisions:")
+        entries.countFieldValues("decision").forEach { (value, count) ->
+            appendLine("- $value: $count")
+        }
+        appendLine()
+        appendLine("Top ML labels:")
+        entries.countFieldValues("text").take(12).forEach { (value, count) ->
+            appendLine("- $value: $count")
+        }
+        appendLine()
+        appendLine("Top mapped candidates:")
+        entries.countFieldValues("id").take(12).forEach { (value, count) ->
+            appendLine("- $value: $count")
+        }
+        appendLine()
+        appendLine("Raw JSON:")
+        append(exportJson())
+    }
 
     private fun List<String>.trimToMaxEvents(): List<String> =
         sortedBy { it.timestampMillisFromJson() }.takeLast(maxEvents)
@@ -109,9 +136,17 @@ internal class DiscoveryDiagnosticsRepository(context: Context) {
 
     fun exportJson(): String {
         val json = loadHistory().exportJson()
-        Log.d(ML_LOG_TAG, "diagnostic export events=${loadHistory().rawEntries().size}")
+        Log.d(ML_LOG_TAG, "diagnostic export events=${eventCount()}")
         return json
     }
+
+    fun exportText(): String {
+        val text = loadHistory().exportText()
+        Log.d(ML_LOG_TAG, "diagnostic export text events=${eventCount()}")
+        return text
+    }
+
+    fun eventCount(): Int = loadHistory().eventCount()
 
     private fun loadHistory(): DiscoveryDiagnosticsHistory =
         DiscoveryDiagnosticsHistory(preferences.getStringSet(EVENTS_KEY, emptySet()).orEmpty().toList())
@@ -155,6 +190,21 @@ internal fun buildDiagnosticEvent(
     reasons = reasons,
 )
 
+internal fun buildAlreadyKnownDiagnosticEvent(
+    timestampMillis: Long,
+    word: de.valentinho13.catchlingo.data.DiscoveredWord,
+    reasons: List<String>,
+): DiscoveryDiagnosticEvent = DiscoveryDiagnosticEvent(
+    timestampMillis = timestampMillis,
+    labels = emptyList(),
+    candidates = emptyList(),
+    proposedCandidateId = word.id,
+    finalCandidateId = word.id,
+    selectedCandidateId = null,
+    decision = DiscoveryDiagnosticDecision.AlreadyKnown,
+    reasons = reasons,
+)
+
 private fun String.timestampMillisFromJson(): Long {
     val marker = "\"timestampMillis\":"
     val start = indexOf(marker)
@@ -163,6 +213,18 @@ private fun String.timestampMillisFromJson(): Long {
     val numberEnd = indexOf(',', numberStart).takeIf { it > numberStart } ?: indexOf('}', numberStart)
     if (numberEnd <= numberStart) return 0L
     return substring(numberStart, numberEnd).toLongOrNull() ?: 0L
+}
+
+private fun List<String>.countFieldValues(fieldName: String): List<Pair<String, Int>> {
+    val regex = Regex("\"${Regex.escape(fieldName)}\":\"([^\"]+)\"")
+    return flatMap { entry ->
+        regex.findAll(entry).map { match -> match.groupValues[1] }.toList()
+    }
+        .groupingBy { it }
+        .eachCount()
+        .entries
+        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+        .map { it.key to it.value }
 }
 
 private fun StringBuilder.appendJsonField(name: String, value: String?) {

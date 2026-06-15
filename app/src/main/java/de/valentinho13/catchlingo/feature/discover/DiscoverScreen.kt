@@ -288,9 +288,12 @@ private fun ExploreScreen(
     var mlUnavailable by remember { mutableStateOf(false) }
     var magnetWord by remember { mutableStateOf<DiscoveredWord?>(null) }
     var caughtWord by remember { mutableStateOf<DiscoveredWord?>(null) }
+    var alreadyKnownWord by remember { mutableStateOf<DiscoveredWord?>(null) }
     var pendingConfirmation by remember { mutableStateOf<PendingDiscoveryConfirmation?>(null) }
     var correctionHistory by remember { mutableStateOf(DiscoveryCorrectionHistory()) }
     var catchVersion by remember { mutableIntStateOf(0) }
+    var alreadyKnownVersion by remember { mutableIntStateOf(0) }
+    var debugRecognitionLine by remember { mutableStateOf<String?>(null) }
     val confirmWord: (PendingDiscoveryConfirmation, VocabularyMatch?) -> Unit = { confirmation, selectedMatch ->
         correctionHistory = correctionHistory.add(
             DiscoveryCorrectionEvent(
@@ -324,6 +327,10 @@ private fun ExploreScreen(
                 magnetWord = word
                 caughtWord = null
                 catchVersion += 1
+            } else {
+                haptics.softTick()
+                alreadyKnownWord = word
+                alreadyKnownVersion += 1
             }
         }
     }
@@ -378,6 +385,14 @@ private fun ExploreScreen(
         }
     }
 
+    LaunchedEffect(alreadyKnownVersion) {
+        val word = alreadyKnownWord
+        if (word != null) {
+            delay(2_200)
+            alreadyKnownWord = null
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -399,6 +414,17 @@ private fun ExploreScreen(
                         magnetWord = word
                         caughtWord = null
                         catchVersion += 1
+                    } else {
+                        haptics.softTick()
+                        alreadyKnownWord = word
+                        alreadyKnownVersion += 1
+                        diagnosticsRepository.addEvent(
+                            buildAlreadyKnownDiagnosticEvent(
+                                timestampMillis = System.currentTimeMillis(),
+                                word = word,
+                                reasons = listOf("repositoryDuplicate"),
+                            ),
+                        )
                     }
                 },
                 onConfirmationPending = { confirmation ->
@@ -409,6 +435,9 @@ private fun ExploreScreen(
                 },
                 onDiagnosticEvent = { event ->
                     diagnosticsRepository.addEvent(event)
+                },
+                onDebugRecognition = { line ->
+                    debugRecognitionLine = line
                 },
                 modifier = Modifier.fillMaxSize(),
             )
@@ -448,6 +477,18 @@ private fun ExploreScreen(
             }
         }
         AnimatedVisibility(
+            visible = alreadyKnownWord != null,
+            enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.97f),
+            exit = fadeOut(tween(220)) + scaleOut(targetScale = 0.98f),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 30.dp),
+        ) {
+            alreadyKnownWord?.let { word ->
+                AlreadyKnownCard(word = word)
+            }
+        }
+        AnimatedVisibility(
             visible = pendingConfirmation != null,
             enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.98f),
             exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.98f),
@@ -464,6 +505,19 @@ private fun ExploreScreen(
                 )
             }
         }
+        AnimatedVisibility(
+            visible = debugRecognitionLine != null && pendingConfirmation == null,
+            enter = fadeIn(tween(160)),
+            exit = fadeOut(tween(180)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+        ) {
+            debugRecognitionLine?.let { line ->
+                DebugRecognitionCard(line = line)
+            }
+        }
         ExploreChrome(
             state = state,
             cameraStreaming = cameraStreaming,
@@ -471,6 +525,51 @@ private fun ExploreScreen(
             mlUnavailable = mlUnavailable,
             onLeaveExplore = onLeaveExplore,
             modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Composable
+private fun AlreadyKnownCard(
+    word: DiscoveredWord,
+    modifier: Modifier = Modifier,
+) {
+    CatchLingoCard(modifier = modifier.fillMaxWidth()) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            MiniPill(
+                text = "Schon im Feldjournal",
+                color = CatchLingoColor.GreenSoft,
+                contentColor = CatchLingoColor.GreenDeep,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Kennst du schon: ${word.word}",
+                style = MaterialTheme.typography.titleLarge,
+                color = CatchLingoColor.GreenDeep,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = word.source,
+                style = MaterialTheme.typography.bodyMedium,
+                color = CatchLingoColor.TextMuted,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DebugRecognitionCard(
+    line: String,
+    modifier: Modifier = Modifier,
+) {
+    CatchLingoCard(modifier = modifier.fillMaxWidth(), elevated = false) {
+        Text(
+            text = line,
+            style = MaterialTheme.typography.labelMedium,
+            color = CatchLingoColor.TextMuted,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -527,6 +626,7 @@ private fun CameraXPreviewLayer(
     onWordCollected: (DiscoveredWord) -> Unit,
     onConfirmationPending: (PendingDiscoveryConfirmation) -> Unit,
     onDiagnosticEvent: (DiscoveryDiagnosticEvent) -> Unit,
+    onDebugRecognition: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -587,6 +687,7 @@ private fun CameraXPreviewLayer(
                                     onWordCollected = onWordCollected,
                                     onConfirmationPending = onConfirmationPending,
                                     onDiagnosticEvent = onDiagnosticEvent,
+                                    onDebugRecognition = onDebugRecognition,
                                 )
                             }
                         }
@@ -626,6 +727,7 @@ private fun analyzeDiscoveryFrame(
     onWordCollected: (DiscoveredWord) -> Unit,
     onConfirmationPending: (PendingDiscoveryConfirmation) -> Unit,
     onDiagnosticEvent: (DiscoveryDiagnosticEvent) -> Unit,
+    onDebugRecognition: (String?) -> Unit,
 ) {
     val now = System.currentTimeMillis()
     if (!discoveryGate.shouldAnalyze(now)) {
@@ -662,7 +764,7 @@ private fun analyzeDiscoveryFrame(
                     nowMillis = System.currentTimeMillis(),
                 )
             } ?: DiscoveryDecision.Ignored
-            val pendingConfirmation = if (
+            val acceptedPendingConfirmation = if (
                 decision.status == DiscoveryDecisionStatus.Accepted &&
                 decision.match != null
             ) {
@@ -675,6 +777,27 @@ private fun analyzeDiscoveryFrame(
             } else {
                 null
             }
+            val debugPendingConfirmation = if (
+                mlDiagnosticsEnabled &&
+                acceptedPendingConfirmation == null &&
+                decision.status != DiscoveryDecisionStatus.DuplicateBlocked
+            ) {
+                buildDebugPendingConfirmation(
+                    originalLabels = originalLabels,
+                    candidates = buildDebugConfirmationCandidates(labels = labels, mappedLabels = mappedLabels),
+                )
+            } else {
+                null
+            }
+            val pendingConfirmation = acceptedPendingConfirmation ?: debugPendingConfirmation
+
+            onDebugRecognition(
+                if (mlDiagnosticsEnabled && labels.isNotEmpty() && pendingConfirmation == null) {
+                    labels.debugRecognitionLine()
+                } else {
+                    null
+                },
+            )
 
             logMlDiagnostics(
                 labels = labels,
@@ -718,6 +841,31 @@ private fun analyzeDiscoveryFrame(
             discoveryGate.finish()
             imageProxy.close()
         }
+}
+
+private fun buildDebugConfirmationCandidates(
+    labels: List<com.google.mlkit.vision.label.ImageLabel>,
+    mappedLabels: List<DiscoveryCandidate>,
+): List<DiscoveryCandidate> {
+    val softCandidates = labels.mapNotNull { label ->
+        if (mappedLabels.any { it.labelText == label.text }) {
+            null
+        } else {
+            mapLabelToSoftVocabulary(label.text)?.let { match ->
+                DiscoveryCandidate(labelText = label.text, confidence = label.confidence, match = match)
+            }
+        }
+    }
+    return (mappedLabels + softCandidates)
+        .sortedByDescending { it.confidence }
+        .distinctBy { it.match.id }
+}
+
+private fun List<com.google.mlkit.vision.label.ImageLabel>.debugRecognitionLine(): String {
+    val labelSummary = take(3).joinToString(", ") { label ->
+        "${label.text.lowercase()} ${label.confidence.formatConfidence()}"
+    }
+    return "Erkannt: $labelSummary"
 }
 
 private enum class DiscoveryDecisionStatus {
