@@ -188,6 +188,93 @@ class DiscoveryDiagnosticsLogTest {
         assertTrue(text.contains("  - Bowl: 1"))
     }
 
+    @Test
+    fun benchmarkExportSummaryReportsRecognitionQualitySignals() {
+        val changedCropEvent = sampleEvent(
+            timestampMillis = 10L,
+            cropLabeling = buildSuccessfulCropLabelingDiagnostics(
+                wholeFrameLabels = listOf(MlLabelObservation("Sink", 0.71f)),
+                cropLabels = listOf(MlLabelObservation("Bowl", 0.82f)),
+            ),
+            objectDetection = selectedObjectDiagnostics(),
+        )
+        val confirmedEvent = sampleEvent(
+            timestampMillis = 11L,
+            decision = DiscoveryDiagnosticDecision.UserConfirmed,
+            selectedCandidateId = "mangkuk",
+            finalCandidateId = "mangkuk",
+            cropLabeling = buildSuccessfulCropLabelingDiagnostics(
+                wholeFrameLabels = listOf(MlLabelObservation("Bowl", 0.76f)),
+                cropLabels = listOf(MlLabelObservation("Bowl", 0.88f)),
+            ),
+        )
+        val rejectedEvent = sampleEvent(
+            timestampMillis = 12L,
+            decision = DiscoveryDiagnosticDecision.UserRejectedNoneOfThese,
+            selectedCandidateId = null,
+            finalCandidateId = null,
+            cropLabeling = buildSkippedCropLabelingDiagnostics(
+                reason = CROP_FAILURE_NO_TARGET,
+                wholeFrameLabels = listOf(MlLabelObservation("Room", 0.61f)),
+            ),
+        )
+        val alreadyKnownEvent = sampleEvent(
+            timestampMillis = 13L,
+            decision = DiscoveryDiagnosticDecision.AlreadyKnown,
+            finalCandidateId = "ponsel",
+            cropLabeling = buildSkippedCropLabelingDiagnostics(
+                reason = CROP_FAILURE_NO_TARGET,
+                wholeFrameLabels = listOf(MlLabelObservation("Phone", 0.90f)),
+            ),
+        )
+        val noCandidateCropEvent = DiscoveryDiagnosticEvent(
+            timestampMillis = 14L,
+            labels = listOf(MlLabelObservation("Product", 0.65f)),
+            candidates = emptyList(),
+            proposedCandidateId = null,
+            finalCandidateId = null,
+            selectedCandidateId = null,
+            decision = DiscoveryDiagnosticDecision.Ignored,
+            cropLabeling = buildSuccessfulCropLabelingDiagnostics(
+                wholeFrameLabels = listOf(MlLabelObservation("Product", 0.65f)),
+                cropLabels = listOf(MlLabelObservation("Bottle", 0.80f)),
+            ),
+        )
+        val history = DiscoveryDiagnosticsHistory()
+            .add(changedCropEvent)
+            .add(confirmedEvent)
+            .add(rejectedEvent)
+            .add(alreadyKnownEvent)
+            .add(noCandidateCropEvent)
+
+        val export = history.exportText()
+        assertTrue(export.contains("Benchmark summary"))
+        assertTrue(export.contains("- total events: 5"))
+        assertTrue(export.contains("- whole-frame top labels:"))
+        assertTrue(export.contains("  - Sink: 1"))
+        assertTrue(export.contains("  - Bowl: 1"))
+        assertTrue(export.contains("- crop top labels:"))
+        assertTrue(export.contains("  - Bowl: 2"))
+        assertTrue(export.contains("  - Bottle: 1"))
+        assertTrue(export.contains("- object detection targets: 1/5"))
+        assertTrue(export.contains("- crop success rate: 3/5 (0.60)"))
+        assertTrue(export.contains("- cropTop != wholeFrameTop: 2/3"))
+        assertTrue(export.contains("- confirmed words:"))
+        assertTrue(export.contains("  - mangkuk: 1"))
+        assertTrue(export.contains("- rejected/none-of-these: 1"))
+        assertTrue(export.contains("- already-known: 1"))
+        assertTrue(export.contains("Benchmark hints"))
+        assertTrue(export.contains("- recent cropTop != wholeFrameTop:"))
+        assertTrue(export.contains("whole=Sink crop=Bowl"))
+        assertTrue(export.contains("- recent no candidate but crop labels existed:"))
+        assertTrue(export.contains("whole=Product crop=Bottle"))
+        assertTrue(export.contains("- recent user-confirmed candidates:"))
+        assertTrue(export.contains("candidate=mangkuk"))
+
+        val rawJson = export.substringAfter("Raw JSON:").trimStart('\r', '\n')
+        assertEquals(history.exportJson(), rawJson)
+    }
+
     private fun sampleEvent(
         timestampMillis: Long = 42L,
         decision: DiscoveryDiagnosticDecision = DiscoveryDiagnosticDecision.AutoAccepted,
@@ -216,4 +303,18 @@ class DiscoveryDiagnosticsLogTest {
         objectDetection = objectDetection,
         cropLabeling = cropLabeling,
     )
+
+    private fun selectedObjectDiagnostics(): ObjectDetectionDiagnostics =
+        ObjectDetectionDiagnostics(
+            objectCount = 2,
+            frameWidth = 1280,
+            frameHeight = 720,
+            selected = SelectedObjectTarget(
+                box = NormalizedObjectBox(left = 0.20f, top = 0.25f, right = 0.80f, bottom = 0.85f),
+                centerDistance = 0.04f,
+                areaRatio = 0.36f,
+                hasCategoryLabels = true,
+                reason = ObjectTargetSelectionReason.Center,
+            ),
+        )
 }

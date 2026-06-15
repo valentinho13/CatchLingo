@@ -131,6 +131,10 @@ internal class DiscoveryDiagnosticsHistory(
         appendLine("CatchLingo ML Diagnostics")
         appendLine("Events: ${entries.size}")
         appendLine()
+        appendBenchmarkSummary(entries)
+        appendLine()
+        appendBenchmarkHints(entries)
+        appendLine()
         appendLine("Decisions:")
         entries.countFieldValues("decision").forEach { (value, count) ->
             appendLine("- $value: $count")
@@ -183,6 +187,42 @@ internal class DiscoveryDiagnosticsHistory(
 
     private fun List<String>.trimToMaxEvents(): List<String> =
         sortedBy { it.timestampMillisFromJson() }.takeLast(maxEvents)
+}
+
+private fun StringBuilder.appendBenchmarkSummary(entries: List<String>) {
+    val cropAttempts = entries.countCropAttempts()
+    val cropSuccesses = entries.countCropSuccesses()
+    val changedTopLabels = entries.countChangedCropTopLabels()
+    appendLine("Benchmark summary")
+    appendLine("- total events: ${entries.size}")
+    appendLine("- whole-frame top labels:")
+    entries.countFieldValues("topWholeFrameLabel").appendCountLinesTo(this)
+    appendLine("- crop top labels:")
+    entries.countFieldValues("topCropLabel").appendCountLinesTo(this)
+    appendLine("- object detection targets: ${entries.countSelectedObjectTargets()}/${entries.size}")
+    appendLine("- object target reasons:")
+    entries.countFieldValues("selectionReason").appendCountLinesTo(this)
+    appendLine("- crop success rate: ${cropSuccesses}/${cropAttempts} (${cropSuccesses.rateOf(cropAttempts)})")
+    appendLine("- cropTop != wholeFrameTop: $changedTopLabels/$cropSuccesses")
+    appendLine("- confirmed words:")
+    entries.confirmedWordCounts().appendCountLinesTo(this)
+    appendLine("- rejected/none-of-these: ${entries.countDecisions(DiscoveryDiagnosticDecision.UserRejectedNoneOfThese.name)}")
+    appendLine("- already-known: ${entries.countDecisions(DiscoveryDiagnosticDecision.AlreadyKnown.name)}")
+}
+
+private fun StringBuilder.appendBenchmarkHints(entries: List<String>) {
+    appendLine("Benchmark hints")
+    appendLine("- recent cropTop != wholeFrameTop:")
+    entries.recentWhere(limit = BenchmarkHintLimit) { it.contains("\"didCropChangeTopLabel\":true") }
+        .appendEventLinesTo(this)
+    appendLine("- recent no candidate but crop labels existed:")
+    entries.recentWhere(limit = BenchmarkHintLimit) {
+        it.contains("\"candidates\":[]") && it.cropTopLabel() != null
+    }.appendEventLinesTo(this)
+    appendLine("- recent user-confirmed candidates:")
+    entries.recentWhere(limit = BenchmarkHintLimit) {
+        it.contains("\"decision\":\"${DiscoveryDiagnosticDecision.UserConfirmed.name}\"")
+    }.appendEventLinesTo(this)
 }
 
 internal class DiscoveryDiagnosticsRepository(context: Context) {
@@ -368,6 +408,68 @@ private fun List<String>.countFieldValues(fieldName: String): List<Pair<String, 
         .map { it.key to it.value }
 }
 
+private fun List<String>.confirmedWordCounts(): List<Pair<String, Int>> =
+    filter { it.contains("\"decision\":\"${DiscoveryDiagnosticDecision.UserConfirmed.name}\"") }
+        .mapNotNull { it.stringFieldValue("finalCandidateId") ?: it.stringFieldValue("selectedCandidateId") }
+        .groupingBy { it }
+        .eachCount()
+        .entries
+        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+        .map { it.key to it.value }
+
+private fun List<String>.countDecisions(decision: String): Int =
+    count { it.contains("\"decision\":\"$decision\"") }
+
+private fun List<String>.recentWhere(limit: Int, predicate: (String) -> Boolean): List<String> =
+    filter(predicate).takeLast(limit)
+
+private fun List<Pair<String, Int>>.appendCountLinesTo(builder: StringBuilder) {
+    if (isEmpty()) {
+        builder.appendLine("  - none")
+    } else {
+        forEach { (value, count) -> builder.appendLine("  - $value: $count") }
+    }
+}
+
+private fun List<String>.appendEventLinesTo(builder: StringBuilder) {
+    if (isEmpty()) {
+        builder.appendLine("  - none")
+    } else {
+        forEach { entry ->
+            builder.appendLine(
+                "  - t=${entry.timestampMillisFromJson()} whole=${entry.wholeTopLabel().orEmpty()} " +
+                    "crop=${entry.cropTopLabel().orEmpty()} decision=${entry.stringFieldValue("decision").orEmpty()} " +
+                    "candidate=${entry.stringFieldValue("finalCandidateId") ?: entry.stringFieldValue("proposedCandidateId") ?: "none"}",
+            )
+        }
+    }
+}
+
+private fun Int.rateOf(total: Int): String =
+    if (total <= 0) {
+        "0.00"
+    } else {
+        String.format(Locale.US, "%.2f", toFloat() / total)
+    }
+
+private fun String.wholeTopLabel(): String? =
+    stringFieldValue("topWholeFrameLabel") ?: firstLabelTextFromArray("labels")
+
+private fun String.cropTopLabel(): String? =
+    stringFieldValue("topCropLabel")
+
+private fun String.stringFieldValue(fieldName: String): String? {
+    val regex = Regex("\"${Regex.escape(fieldName)}\":\"([^\"]+)\"")
+    return regex.find(this)?.groupValues?.get(1)
+}
+
+private fun String.firstLabelTextFromArray(arrayFieldName: String): String? {
+    val arrayRegex = Regex("\"${Regex.escape(arrayFieldName)}\":\\[(.*?)]")
+    val labelRegex = Regex("\"text\":\"([^\"]+)\"")
+    val arrayBody = arrayRegex.find(this)?.groupValues?.get(1) ?: return null
+    return labelRegex.find(arrayBody)?.groupValues?.get(1)
+}
+
 private fun List<String>.countNumericFieldValues(fieldName: String): List<Pair<String, Int>> {
     val regex = Regex("\"${Regex.escape(fieldName)}\":(-?\\d+)")
     return flatMap { entry ->
@@ -472,3 +574,4 @@ internal const val MaxDiscoveryDiagnosticEvents = 250
 internal const val ML_LOG_TAG = "CatchLingoML"
 private const val MaxDiagnosticLabels = 5
 private const val MaxDiagnosticCandidates = 4
+private const val BenchmarkHintLimit = 8
