@@ -97,6 +97,76 @@ private enum class Vocabulary(
         category = "Essen & Trinken",
         labels = setOf("knife", "kitchen knife"),
     ),
+    Pot(
+        id = "panci",
+        word = "panci",
+        source = "pot",
+        category = "Essen & Trinken",
+        labels = setOf("pot", "cooking pot"),
+    ),
+    Pan(
+        id = "wajan",
+        word = "wajan",
+        source = "pan",
+        category = "Essen & Trinken",
+        labels = setOf("pan", "frying pan"),
+    ),
+    Kettle(
+        id = "ketel",
+        word = "ketel",
+        source = "kettle",
+        category = "Essen & Trinken",
+        labels = setOf("kettle", "tea kettle"),
+    ),
+    Teapot(
+        id = "teko",
+        word = "teko",
+        source = "teapot",
+        category = "Essen & Trinken",
+        labels = setOf("teapot"),
+    ),
+    Microwave(
+        id = "microwave",
+        word = "microwave",
+        source = "microwave",
+        category = "Essen & Trinken",
+        labels = setOf("microwave", "microwave oven"),
+    ),
+    Oven(
+        id = "oven",
+        word = "oven",
+        source = "oven",
+        category = "Essen & Trinken",
+        labels = setOf("oven"),
+    ),
+    Toaster(
+        id = "toaster",
+        word = "toaster",
+        source = "toaster",
+        category = "Essen & Trinken",
+        labels = setOf("toaster"),
+    ),
+    Sink(
+        id = "wastafel",
+        word = "wastafel",
+        source = "sink",
+        category = "Essen & Trinken",
+        labels = setOf("sink", "kitchen sink"),
+    ),
+    Faucet(
+        id = "keran",
+        word = "keran",
+        source = "faucet",
+        category = "Essen & Trinken",
+        labels = setOf("faucet", "tap"),
+    ),
+    CuttingBoard(
+        id = "talenan",
+        word = "talenan",
+        source = "cutting board",
+        category = "Essen & Trinken",
+        labels = setOf("cutting board", "chopping board"),
+    ),
     Apple(
         id = "apel",
         word = "apel",
@@ -218,6 +288,20 @@ private enum class Vocabulary(
         source = "television",
         category = "Zuhause",
         labels = setOf("television", "tv"),
+    ),
+    Refrigerator(
+        id = "kulkas",
+        word = "kulkas",
+        source = "refrigerator",
+        category = "Zuhause",
+        labels = setOf("refrigerator", "fridge"),
+    ),
+    Cabinet(
+        id = "lemari",
+        word = "lemari",
+        source = "cabinet",
+        category = "Zuhause",
+        labels = setOf("cabinet", "cupboard"),
     ),
     Lamp(
         id = "lampu",
@@ -439,4 +523,17 @@ private enum class Vocabulary(
 }
 
 private const val DefaultMinConfidence = 0.62f
-private val ExactLabelMatchIds = setOf("anjing", "gelas", "kursi", "matahari", "meja", "ponsel")
+private val ExactLabelMatchIds = setOf(
+    "anjing",
+    "gelas",
+    "keran",
+    "kursi",
+    "lemari",
+    "matahari",
+    "meja",
+    "oven",
+    "panci",
+    "ponsel",
+    "wajan",
+    "wastafel",
+)

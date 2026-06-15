@@ -67,6 +67,44 @@ class DiscoveryVocabularyTest {
         assertVocabulary("drinking glass", "gelas", "glass")
     }
 
+    @Test
+    fun mapsKitchenBaselineVocabularyPack() {
+        assertVocabulary("plate", "piring", "plate")
+        assertVocabulary("bowl", "mangkuk", "bowl")
+        assertVocabulary("cup", "cangkir", "cup")
+        assertVocabulary("glass", "gelas", "glass")
+        assertVocabulary("bottle", "botol", "bottle")
+        assertVocabulary("spoon", "sendok", "spoon")
+        assertVocabulary("fork", "garpu", "fork")
+        assertVocabulary("knife", "pisau", "knife")
+        assertVocabulary("pot", "panci", "pot")
+        assertVocabulary("pan", "wajan", "pan")
+        assertVocabulary("kettle", "ketel", "kettle")
+        assertVocabulary("teapot", "teko", "teapot")
+        assertVocabulary("refrigerator", "kulkas", "refrigerator")
+        assertVocabulary("microwave", "microwave", "microwave")
+        assertVocabulary("oven", "oven", "oven")
+        assertVocabulary("toaster", "toaster", "toaster")
+        assertVocabulary("sink", "wastafel", "sink")
+        assertVocabulary("faucet", "keran", "faucet")
+        assertVocabulary("cabinet", "lemari", "cabinet")
+        assertVocabulary("cutting board", "talenan", "cutting board")
+    }
+
+    @Test
+    fun kitchenBaselineAvoidsBroadOrWrongLabels() {
+        assertNull(mapLabelToVocabulary("tableware"))
+        assertNull(mapLabelToVocabulary("kitchen"))
+        assertNull(mapLabelToVocabulary("food"))
+        assertNull(mapLabelToVocabulary("meal"))
+        assertNull(mapLabelToVocabulary("sunglasses"))
+        assertNull(mapLabelToVocabulary("glasses"))
+        assertNull(mapLabelToVocabulary("potato"))
+        assertNull(mapLabelToVocabulary("pants"))
+        assertNull(mapLabelToVocabulary("ovenware"))
+        assertNull(mapLabelToVocabulary("bathroom sink"))
+    }
+
     private fun assertVocabulary(
         label: String,
         expectedWord: String,
