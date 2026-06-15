@@ -1,7 +1,9 @@
 package de.valentinho13.catchlingo.feature.discover
 
 import android.Manifest
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.util.Log
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -94,8 +96,8 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.ImageLabeler
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
-import de.valentinho13.catchlingo.data.DiscoveredWord
 import de.valentinho13.catchlingo.R
+import de.valentinho13.catchlingo.data.DiscoveredWord
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.CatchLingoMotion
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoButton
@@ -104,6 +106,7 @@ import de.valentinho13.catchlingo.designsystem.components.CatchLingoHeroCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoSpecimenCard
 import de.valentinho13.catchlingo.designsystem.components.MiniPill
 import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
+import java.util.Locale
 import java.util.concurrent.Executors
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -411,6 +414,9 @@ private fun CameraXPreviewLayer(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val mlDiagnosticsEnabled = remember(context) {
+        context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember {
         PreviewView(context).apply {
@@ -460,6 +466,7 @@ private fun CameraXPreviewLayer(
                                     imageProxy = imageProxy,
                                     imageLabeler = imageLabeler,
                                     discoveryGate = discoveryGate,
+                                    mlDiagnosticsEnabled = mlDiagnosticsEnabled,
                                     onMlUnavailable = onMlUnavailable,
                                     onWordCollected = onWordCollected,
                                 )
@@ -496,6 +503,7 @@ private fun analyzeDiscoveryFrame(
     imageProxy: ImageProxy,
     imageLabeler: ImageLabeler,
     discoveryGate: DiscoveryGate,
+    mlDiagnosticsEnabled: Boolean,
     onMlUnavailable: () -> Unit,
     onWordCollected: (DiscoveredWord) -> Unit,
 ) {
@@ -515,17 +523,32 @@ private fun analyzeDiscoveryFrame(
     val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
     imageLabeler.process(image)
         .addOnSuccessListener { labels ->
-            val bestMatch = labels
-                .asSequence()
-                .mapNotNull { label ->
-                    mapLabelToVocabulary(label.text)?.let { match -> match to label.confidence }
+            val mappedLabels = labels.mapNotNull { label ->
+                mapLabelToVocabulary(label.text)?.let { match ->
+                    LabelCandidate(labelText = label.text, confidence = label.confidence, match = match)
                 }
-                .maxByOrNull { it.second }
-            val accepted = bestMatch?.let { (match, confidence) ->
-                discoveryGate.accept(match = match, confidence = confidence, nowMillis = System.currentTimeMillis())
             }
-            if (accepted != null) {
-                onWordCollected(accepted.toDiscoveredWord(System.currentTimeMillis()))
+            val bestEligible = mappedLabels
+                .asSequence()
+                .filter { it.confidence >= it.match.minConfidence }
+                .maxByOrNull { it.confidence }
+            val decision = bestEligible?.let { candidate ->
+                discoveryGate.accept(
+                    match = candidate.match,
+                    confidence = candidate.confidence,
+                    nowMillis = System.currentTimeMillis(),
+                )
+            } ?: DiscoveryDecision.Ignored
+
+            logMlDiagnostics(
+                labels = labels,
+                mappedLabels = mappedLabels,
+                decision = decision,
+                enabled = mlDiagnosticsEnabled,
+            )
+
+            if (decision.status == DiscoveryDecisionStatus.Accepted && decision.match != null) {
+                onWordCollected(decision.match.toDiscoveredWord(System.currentTimeMillis()))
             }
         }
         .addOnFailureListener {
@@ -536,6 +559,67 @@ private fun analyzeDiscoveryFrame(
             imageProxy.close()
         }
 }
+
+private data class LabelCandidate(
+    val labelText: String,
+    val confidence: Float,
+    val match: VocabularyMatch,
+)
+
+private enum class DiscoveryDecisionStatus {
+    Accepted,
+    WaitingForStability,
+    DuplicateBlocked,
+    Ignored,
+}
+
+private data class DiscoveryDecision(
+    val status: DiscoveryDecisionStatus,
+    val match: VocabularyMatch? = null,
+    val stableCount: Int = 0,
+) {
+    companion object {
+        val Ignored = DiscoveryDecision(status = DiscoveryDecisionStatus.Ignored)
+    }
+}
+
+private fun logMlDiagnostics(
+    labels: List<com.google.mlkit.vision.label.ImageLabel>,
+    mappedLabels: List<LabelCandidate>,
+    decision: DiscoveryDecision,
+    enabled: Boolean,
+) {
+    if (!enabled || labels.isEmpty()) return
+
+    val mappedByLabel = mappedLabels.associateBy { it.labelText }
+    val topLabels = labels
+        .take(ML_DIAGNOSTIC_LABEL_LIMIT)
+        .joinToString(separator = " | ") { label ->
+            val mapped = mappedByLabel[label.text]
+            val confidence = label.confidence.formatConfidence()
+            if (mapped == null) {
+                "${label.text}:$confidence -> unmapped"
+            } else {
+                val thresholdState = if (mapped.confidence >= mapped.match.minConfidence) "eligible" else "below-threshold"
+                "${label.text}:$confidence -> ${mapped.match.id}/${mapped.match.word}/${mapped.match.category} $thresholdState"
+            }
+        }
+    Log.d(
+        ML_LOG_TAG,
+        "labels=[$topLabels] decision=${decision.describe()}",
+    )
+}
+
+private fun DiscoveryDecision.describe(): String = when (status) {
+    DiscoveryDecisionStatus.Accepted -> "accepted ${match?.id}/${match?.word}"
+    DiscoveryDecisionStatus.WaitingForStability -> {
+        "waiting ${match?.id}/${match?.word} stable=$stableCount/$REQUIRED_STABLE_MATCHES"
+    }
+    DiscoveryDecisionStatus.DuplicateBlocked -> "duplicate-blocked ${match?.id}/${match?.word}"
+    DiscoveryDecisionStatus.Ignored -> "ignored"
+}
+
+private fun Float.formatConfidence(): String = String.format(Locale.US, "%.2f", this)
 
 private class DiscoveryGate {
     private var inFlight = false
@@ -556,16 +640,18 @@ private class DiscoveryGate {
     }
 
     @Synchronized
-    fun accept(match: VocabularyMatch, confidence: Float, nowMillis: Long): VocabularyMatch? {
-        if (confidence < MIN_LABEL_CONFIDENCE) {
-            return null
+    fun accept(match: VocabularyMatch, confidence: Float, nowMillis: Long): DiscoveryDecision {
+        if (confidence < match.minConfidence) {
+            return DiscoveryDecision.Ignored
         }
-
         recentlyCollectedAtMillis.entries.removeAll { (_, collectedAt) ->
             nowMillis - collectedAt > DUPLICATE_WINDOW_MILLIS
         }
         if (nowMillis - (recentlyCollectedAtMillis[match.id] ?: 0L) < DUPLICATE_WINDOW_MILLIS) {
-            return null
+            return DiscoveryDecision(
+                status = DiscoveryDecisionStatus.DuplicateBlocked,
+                match = match,
+            )
         }
 
         if (candidateId == match.id && nowMillis - candidateSeenAtMillis < STABLE_MATCH_WINDOW_MILLIS) {
@@ -577,14 +663,22 @@ private class DiscoveryGate {
         candidateSeenAtMillis = nowMillis
 
         if (candidateCount < REQUIRED_STABLE_MATCHES) {
-            return null
+            return DiscoveryDecision(
+                status = DiscoveryDecisionStatus.WaitingForStability,
+                match = match,
+                stableCount = candidateCount,
+            )
         }
 
         recentlyCollectedAtMillis[match.id] = nowMillis
         candidateId = null
         candidateCount = 0
         candidateSeenAtMillis = 0L
-        return match
+        return DiscoveryDecision(
+            status = DiscoveryDecisionStatus.Accepted,
+            match = match,
+            stableCount = REQUIRED_STABLE_MATCHES,
+        )
     }
 
     @Synchronized
@@ -596,10 +690,12 @@ private class DiscoveryGate {
         const val ANALYSIS_INTERVAL_MILLIS = 900L
         const val STABLE_MATCH_WINDOW_MILLIS = 4_500L
         const val DUPLICATE_WINDOW_MILLIS = 30_000L
-        const val MIN_LABEL_CONFIDENCE = 0.62f
-        const val REQUIRED_STABLE_MATCHES = 2
     }
 }
+
+private const val ML_LOG_TAG = "CatchLingoML"
+private const val ML_DIAGNOSTIC_LABEL_LIMIT = 5
+private const val REQUIRED_STABLE_MATCHES = 2
 
 @Composable
 private fun WarmCameraGradeOverlay(modifier: Modifier = Modifier) {

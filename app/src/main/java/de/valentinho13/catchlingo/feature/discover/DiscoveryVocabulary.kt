@@ -7,12 +7,13 @@ internal data class VocabularyMatch(
     val word: String,
     val source: String,
     val category: String,
+    val minConfidence: Float = DefaultMinConfidence,
 )
 
 internal fun mapLabelToVocabulary(label: String): VocabularyMatch? {
     val normalized = label.lowercase()
     return Vocabulary.entries.firstOrNull { entry ->
-        entry.labels.any { normalized.contains(it) }
+        entry.matches(normalized)
     }?.toMatch()
 }
 
@@ -30,6 +31,7 @@ private enum class Vocabulary(
     val source: String,
     val category: String,
     val labels: Set<String>,
+    val minConfidence: Float = DefaultMinConfidence,
 ) {
     // Essen & Trinken
     Cup(
@@ -130,7 +132,8 @@ private enum class Vocabulary(
         word = "kursi",
         source = "chair",
         category = "Zuhause",
-        labels = setOf("chair", "seat", "stool"),
+        labels = setOf("chair"),
+        minConfidence = 0.74f,
     ),
     Table(
         id = "meja",
@@ -286,7 +289,8 @@ private enum class Vocabulary(
         word = "ponsel",
         source = "phone",
         category = "Unterwegs",
-        labels = setOf("phone", "mobile phone", "cellphone", "cell phone", "telephone"),
+        labels = setOf("phone", "mobile phone", "cellphone", "cell phone", "smartphone"),
+        minConfidence = 0.78f,
     ),
     Bag(
         id = "tas",
@@ -401,6 +405,7 @@ private enum class Vocabulary(
         source = "dog",
         category = "Natur",
         labels = setOf("dog", "puppy"),
+        minConfidence = 0.86f,
     ),
     Cat(
         id = "kucing",
@@ -422,5 +427,16 @@ private enum class Vocabulary(
         word = word,
         source = source,
         category = category,
+        minConfidence = minConfidence,
     )
+
+    fun matches(normalizedLabel: String): Boolean =
+        if (id in ExactLabelMatchIds) {
+            normalizedLabel in labels
+        } else {
+            labels.any { normalizedLabel.contains(it) }
+        }
 }
+
+private const val DefaultMinConfidence = 0.62f
+private val ExactLabelMatchIds = setOf("anjing", "kursi", "ponsel")

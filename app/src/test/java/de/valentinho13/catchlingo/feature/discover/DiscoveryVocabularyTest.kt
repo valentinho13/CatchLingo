@@ -12,6 +12,8 @@ class DiscoveryVocabularyTest {
         assertVocabulary("bottle", "botol", "bottle")
         assertVocabulary("chair", "kursi", "chair")
         assertVocabulary("plant", "tanaman", "plant")
+        assertVocabulary("shoe", "sepatu", "shoe")
+        assertVocabulary("dog", "anjing", "dog")
     }
 
     @Test
@@ -29,6 +31,19 @@ class DiscoveryVocabularyTest {
         assertNull(mapLabelToVocabulary("room"))
         assertNull(mapLabelToVocabulary("vehicle"))
         assertNull(mapLabelToVocabulary("food"))
+        assertNull(mapLabelToVocabulary("remote control"))
+        assertNull(mapLabelToVocabulary("remote"))
+        assertNull(mapLabelToVocabulary("tripod"))
+        assertNull(mapLabelToVocabulary("stand"))
+        assertNull(mapLabelToVocabulary("telephone"))
+        assertNull(mapLabelToVocabulary("hot dog"))
+    }
+
+    @Test
+    fun riskyLabelsUseHigherConfidenceThresholds() {
+        assertMinConfidence("chair", 0.74f)
+        assertMinConfidence("mobile phone", 0.78f)
+        assertMinConfidence("dog", 0.86f)
     }
 
     private fun assertVocabulary(
@@ -39,5 +54,10 @@ class DiscoveryVocabularyTest {
         val match = requireNotNull(mapLabelToVocabulary(label))
         assertEquals(expectedWord, match.word)
         assertEquals(expectedSource, match.source)
+    }
+
+    private fun assertMinConfidence(label: String, expectedMinConfidence: Float) {
+        val match = requireNotNull(mapLabelToVocabulary(label))
+        assertEquals(expectedMinConfidence, match.minConfidence, 0.001f)
     }
 }
