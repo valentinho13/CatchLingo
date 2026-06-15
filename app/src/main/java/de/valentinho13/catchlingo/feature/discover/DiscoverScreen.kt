@@ -275,6 +275,9 @@ private fun ExploreScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val haptics = rememberCatchLingoHaptics()
+    val diagnosticsRepository = remember(context) {
+        DiscoveryDiagnosticsRepository(context.applicationContext)
+    }
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
@@ -295,6 +298,22 @@ private fun ExploreScreen(
                 labels = confirmation.originalLabels,
                 shownCandidateIds = confirmation.candidates.map { it.match.id },
                 selectedCandidateId = selectedMatch?.id,
+            ),
+        )
+        diagnosticsRepository.addEvent(
+            buildDiagnosticEvent(
+                timestampMillis = System.currentTimeMillis(),
+                labels = confirmation.originalLabels,
+                candidates = confirmation.candidates,
+                decision = if (selectedMatch == null) {
+                    DiscoveryDiagnosticDecision.UserRejectedNoneOfThese
+                } else {
+                    DiscoveryDiagnosticDecision.UserConfirmed
+                },
+                proposedCandidateId = confirmation.proposedWord.id,
+                finalCandidateId = selectedMatch?.id,
+                selectedCandidateId = selectedMatch?.id,
+                reasons = confirmation.reasons.map { it.name },
             ),
         )
         pendingConfirmation = null
@@ -387,6 +406,9 @@ private fun ExploreScreen(
                     pendingConfirmation = confirmation
                     magnetWord = null
                     caughtWord = null
+                },
+                onDiagnosticEvent = { event ->
+                    diagnosticsRepository.addEvent(event)
                 },
                 modifier = Modifier.fillMaxSize(),
             )
@@ -504,6 +526,7 @@ private fun CameraXPreviewLayer(
     onMlUnavailable: () -> Unit,
     onWordCollected: (DiscoveredWord) -> Unit,
     onConfirmationPending: (PendingDiscoveryConfirmation) -> Unit,
+    onDiagnosticEvent: (DiscoveryDiagnosticEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -563,6 +586,7 @@ private fun CameraXPreviewLayer(
                                     onMlUnavailable = onMlUnavailable,
                                     onWordCollected = onWordCollected,
                                     onConfirmationPending = onConfirmationPending,
+                                    onDiagnosticEvent = onDiagnosticEvent,
                                 )
                             }
                         }
@@ -601,6 +625,7 @@ private fun analyzeDiscoveryFrame(
     onMlUnavailable: () -> Unit,
     onWordCollected: (DiscoveredWord) -> Unit,
     onConfirmationPending: (PendingDiscoveryConfirmation) -> Unit,
+    onDiagnosticEvent: (DiscoveryDiagnosticEvent) -> Unit,
 ) {
     val now = System.currentTimeMillis()
     if (!discoveryGate.shouldAnalyze(now)) {
@@ -657,6 +682,25 @@ private fun analyzeDiscoveryFrame(
                 decision = decision,
                 pendingConfirmation = pendingConfirmation,
                 enabled = mlDiagnosticsEnabled,
+            )
+            onDiagnosticEvent(
+                buildDiagnosticEvent(
+                    timestampMillis = System.currentTimeMillis(),
+                    labels = originalLabels,
+                    candidates = mappedLabels,
+                    decision = decision.toDiagnosticDecision(pendingConfirmation),
+                    proposedCandidateId = decision.match?.id,
+                    finalCandidateId = if (
+                        decision.status == DiscoveryDecisionStatus.Accepted &&
+                        pendingConfirmation == null
+                    ) {
+                        decision.match?.id
+                    } else {
+                        null
+                    },
+                    reasons = pendingConfirmation?.reasons?.map { it.name }
+                        ?: decision.diagnosticReasons(),
+                ),
             )
 
             if (decision.status == DiscoveryDecisionStatus.Accepted && decision.match != null) {
@@ -738,6 +782,21 @@ private fun PendingDiscoveryConfirmation?.describe(): String =
         "pending ${proposedWord.id}/${proposedWord.word} reasons=${reasons.joinToString("+")}"
     }
 
+private fun DiscoveryDecision.toDiagnosticDecision(
+    pendingConfirmation: PendingDiscoveryConfirmation?,
+): DiscoveryDiagnosticDecision = when {
+    pendingConfirmation != null -> DiscoveryDiagnosticDecision.PendingConfirmation
+    status == DiscoveryDecisionStatus.Accepted -> DiscoveryDiagnosticDecision.AutoAccepted
+    status == DiscoveryDecisionStatus.DuplicateBlocked -> DiscoveryDiagnosticDecision.DuplicateBlocked
+    else -> DiscoveryDiagnosticDecision.Ignored
+}
+
+private fun DiscoveryDecision.diagnosticReasons(): List<String> = when (status) {
+    DiscoveryDecisionStatus.WaitingForStability -> listOf("waitingForStability")
+    DiscoveryDecisionStatus.Ignored -> listOf("noEligibleCandidate")
+    else -> emptyList()
+}
+
 private fun Float.formatConfidence(): String = String.format(Locale.US, "%.2f", this)
 
 private class DiscoveryGate {
@@ -815,7 +874,6 @@ private class DiscoveryGate {
     }
 }
 
-private const val ML_LOG_TAG = "CatchLingoML"
 private const val ML_DIAGNOSTIC_LABEL_LIMIT = 5
 private const val REQUIRED_STABLE_MATCHES = 2
 

@@ -1,5 +1,9 @@
 package de.valentinho13.catchlingo.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.pm.ApplicationInfo
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -33,6 +37,7 @@ import de.valentinho13.catchlingo.designsystem.components.CatchLingoBottomBar
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoNavItem
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoTopBar
 import de.valentinho13.catchlingo.feature.dictionary.DictionaryScreen
+import de.valentinho13.catchlingo.feature.discover.DiscoveryDiagnosticsRepository
 import de.valentinho13.catchlingo.feature.discover.DiscoverScreen
 import de.valentinho13.catchlingo.feature.review.ReviewScreen
 import java.time.LocalTime
@@ -43,6 +48,12 @@ fun CatchLingoApp() {
     val context = LocalContext.current
     val discoveryRepository = remember {
         DiscoveryRepository(context.applicationContext)
+    }
+    val diagnosticsRepository = remember {
+        DiscoveryDiagnosticsRepository(context.applicationContext)
+    }
+    val diagnosticsExportEnabled = remember(context) {
+        context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
     }
     val discoveredWords by discoveryRepository.words.collectAsState()
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -70,7 +81,18 @@ fun CatchLingoApp() {
                     subtitle = selected.subtitle(),
                     actionIcon = Icons.Outlined.Settings,
                     onActionClick = {
-                        showFeedback("Einstellungen kommen bald in einer ruhigen, kleinen Ansicht.")
+                        if (diagnosticsExportEnabled) {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(
+                                ClipData.newPlainText(
+                                    "CatchLingo ML diagnostics",
+                                    diagnosticsRepository.exportJson(),
+                                ),
+                            )
+                            showFeedback("ML-Diagnose wurde in die Zwischenablage kopiert.")
+                        } else {
+                            showFeedback("Einstellungen kommen bald in einer ruhigen, kleinen Ansicht.")
+                        }
                     },
                 )
             }
