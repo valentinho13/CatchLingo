@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,15 +13,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
-import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.QuestionMark
+import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,14 +31,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.valentinho13.catchlingo.R
+import de.valentinho13.catchlingo.data.DiscoveredWord
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
-import de.valentinho13.catchlingo.designsystem.components.CatchLingoButton
-import de.valentinho13.catchlingo.designsystem.components.CatchLingoButtonStyle
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoHeroCard
 import de.valentinho13.catchlingo.designsystem.components.MiniPill
@@ -48,78 +49,47 @@ import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
 @Composable
 fun ReviewScreen(
     modifier: Modifier = Modifier,
-    onFeedback: (String) -> Unit = {},
+    words: List<DiscoveredWord> = emptyList(),
 ) {
-    val reviewWords = emptyList<String>()
-    var selectedMode by rememberSaveable { mutableStateOf(ReviewMode.Easy) }
+    var revealedWordIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
-    Column(
+    LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+            .padding(horizontal = 24.dp),
+        contentPadding = PaddingValues(vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        if (reviewWords.isEmpty()) {
-            StaggeredEntrance(index = 0) {
-                ReviewEmptyState()
+        if (words.isEmpty()) {
+            item {
+                StaggeredEntrance(index = 0) {
+                    ReviewEmptyState()
+                }
             }
-            StaggeredEntrance(index = 1) {
-                CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
-                    Column {
-                        Text(text = "Sanftes Erinnern", style = MaterialTheme.typography.titleMedium)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Sobald du echte Wörter gesammelt hast, kannst du sie hier ruhig wiederholen.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = CatchLingoColor.TextMuted,
-                        )
-                    }
+            item {
+                StaggeredEntrance(index = 1) {
+                    ReviewWaitingCard()
                 }
             }
         } else {
-            StaggeredEntrance(index = 0) {
-                ReviewPracticeCard(
-                    selectedMode = selectedMode,
-                    word = reviewWords.first(),
-                    onFeedback = onFeedback,
-                )
-            }
-            StaggeredEntrance(index = 1) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ModeCard(
-                        mode = ReviewMode.Easy,
-                        selected = selectedMode == ReviewMode.Easy,
-                        icon = Icons.Outlined.Image,
-                        onClick = { selectedMode = ReviewMode.Easy },
-                        modifier = Modifier.weight(1f),
-                    )
-                    ModeCard(
-                        mode = ReviewMode.Hard,
-                        selected = selectedMode == ReviewMode.Hard,
-                        icon = Icons.Outlined.QuestionMark,
-                        onClick = { selectedMode = ReviewMode.Hard },
-                        modifier = Modifier.weight(1f),
-                    )
+            item {
+                StaggeredEntrance(index = 0) {
+                    ReviewIntroCard(wordCount = words.size)
                 }
             }
-            StaggeredEntrance(index = 2) {
-                CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(text = "Sanftes Erinnern", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Review bleibt eine ruhige Hilfe für echte Funde, kein Schulmodus und kein Drucksystem.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = CatchLingoColor.TextMuted,
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    CatchLingoButton(
-                        text = "Später erinnern",
-                        onClick = {
-                            onFeedback("Alles gut. CatchLingo erinnert dich später sanft daran.")
+            itemsIndexed(words, key = { _, word -> word.id }) { index, word ->
+                val revealed = word.id in revealedWordIds
+                StaggeredEntrance(index = index + 1) {
+                    RecallWordCard(
+                        word = word,
+                        revealed = revealed,
+                        onToggleReveal = {
+                            revealedWordIds = if (revealed) {
+                                revealedWordIds - word.id
+                            } else {
+                                revealedWordIds + word.id
+                            }
                         },
-                        style = CatchLingoButtonStyle.Quiet,
-                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
@@ -141,11 +111,13 @@ private fun ReviewEmptyState() {
                 text = "Erst entdecken, dann erinnern",
                 style = MaterialTheme.typography.headlineMedium,
                 color = CatchLingoColor.GreenDeep,
+                textAlign = TextAlign.Center,
             )
             Text(
                 text = "Review wird aktiv, sobald dein Wörterbuch echte Funde enthält.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CatchLingoColor.TextMuted,
+                textAlign = TextAlign.Center,
             )
             Spacer(modifier = Modifier.height(18.dp))
             Box(contentAlignment = Alignment.BottomEnd) {
@@ -175,156 +147,120 @@ private fun ReviewEmptyState() {
 }
 
 @Composable
-private fun ReviewPracticeCard(
-    selectedMode: ReviewMode,
-    word: String,
-    onFeedback: (String) -> Unit,
-) {
-    CatchLingoHeroCard(modifier = Modifier.fillMaxWidth()) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            MiniPill(
-                text = selectedMode.title,
-                color = selectedMode.softColor(),
-                contentColor = selectedMode.accentColor(),
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+private fun ReviewWaitingCard() {
+    CatchLingoCard(modifier = Modifier.fillMaxWidth(), elevated = false) {
+        Column {
+            Text(text = "Sanftes Erinnern", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = selectedMode.headline,
-                style = MaterialTheme.typography.headlineMedium,
-                color = selectedMode.accentColor(),
-            )
-            Text(text = selectedMode.subtitle, style = MaterialTheme.typography.bodyMedium, color = CatchLingoColor.TextMuted)
-            Spacer(modifier = Modifier.height(14.dp))
-            ReviewPrompt(mode = selectedMode, word = word)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = selectedMode.helperText,
+                text = "Sobald du echte Wörter gesammelt hast, kannst du sie hier ruhig wiederholen.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = CatchLingoColor.TextPrimary,
-            )
-            Spacer(modifier = Modifier.height(18.dp))
-            CatchLingoButton(
-                text = "Starten",
-                onClick = {
-                    onFeedback("${selectedMode.title} ist bereit.")
-                },
-                modifier = Modifier.fillMaxWidth(),
+                color = CatchLingoColor.TextMuted,
             )
         }
     }
 }
 
 @Composable
-private fun ReviewPrompt(mode: ReviewMode, word: String) {
-    Box(contentAlignment = Alignment.BottomEnd) {
-        Box(
-            modifier = Modifier
-                .size(168.dp)
-                .clip(CircleShape)
-                .background(mode.softColor().copy(alpha = 0.62f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            when (mode) {
-                ReviewMode.Easy -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Outlined.Image,
-                        contentDescription = null,
-                        tint = mode.accentColor(),
-                        modifier = Modifier.size(46.dp),
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Bild",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = mode.accentColor(),
-                    )
-                }
-
-                ReviewMode.Hard -> Text(
-                    text = word,
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = mode.accentColor(),
+private fun ReviewIntroCard(wordCount: Int) {
+    CatchLingoCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                modifier = Modifier.size(54.dp),
+                shape = CircleShape,
+                color = CatchLingoColor.AmberSoft,
+                contentColor = CatchLingoColor.AmberDeep,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.MenuBook,
+                    contentDescription = null,
+                    modifier = Modifier.padding(14.dp),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 14.dp),
+            ) {
+                Text(
+                    text = "Deine Funde erinnern",
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "Tippe eine Karte an und prüfe, ob du dich erinnerst.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = CatchLingoColor.TextMuted,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                MiniPill(
+                    text = if (wordCount == 1) "1 echter Fund" else "$wordCount echte Funde",
+                    color = CatchLingoColor.GreenSoft,
+                    contentColor = CatchLingoColor.GreenDeep,
                 )
             }
         }
-        Image(
-            painter = painterResource(R.drawable.welcome_cat),
-            contentDescription = null,
-            modifier = Modifier.size(76.dp),
-            contentScale = ContentScale.Fit,
-        )
     }
 }
 
 @Composable
-private fun ModeCard(
-    mode: ReviewMode,
-    selected: Boolean,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+private fun RecallWordCard(
+    word: DiscoveredWord,
+    revealed: Boolean,
+    onToggleReveal: () -> Unit,
 ) {
     val haptics = rememberCatchLingoHaptics()
+
     CatchLingoCard(
-        modifier = modifier.catchLingoTactileClickable {
-            haptics.softTick()
-            onClick()
-        },
-        elevated = selected,
+        modifier = Modifier
+            .fillMaxWidth()
+            .catchLingoTactileClickable {
+                haptics.softTick()
+                onToggleReveal()
+            },
+        elevated = revealed,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = mode.accentColor(),
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = mode.shortTitle, style = MaterialTheme.typography.titleMedium)
-            Text(text = mode.shortSubtitle, style = MaterialTheme.typography.labelMedium, color = CatchLingoColor.TextMuted)
-            if (selected) {
-                Spacer(modifier = Modifier.height(10.dp))
-                MiniPill(
-                    text = "aktiv",
-                    color = mode.softColor(),
-                    contentColor = mode.accentColor(),
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                modifier = Modifier.size(58.dp),
+                shape = CircleShape,
+                color = if (revealed) CatchLingoColor.GreenSoft else CatchLingoColor.WarmSurface,
+                contentColor = if (revealed) CatchLingoColor.GreenDeep else CatchLingoColor.AmberDeep,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.TouchApp,
+                    contentDescription = null,
+                    modifier = Modifier.padding(15.dp),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 14.dp),
+            ) {
+                Text(
+                    text = word.word,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = CatchLingoColor.GreenDeep,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (revealed) word.source else "Tippen zum Aufdecken",
+                    style = if (revealed) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
+                    color = if (revealed) CatchLingoColor.TextPrimary else CatchLingoColor.TextMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = if (revealed) "Aus deinem Feldjournal" else "Erinnere dich einen Moment lang.",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = CatchLingoColor.TextMuted,
+                    modifier = Modifier.padding(top = 5.dp),
                 )
             }
         }
     }
-}
-
-private fun ReviewMode.accentColor() = when (this) {
-    ReviewMode.Easy -> CatchLingoColor.Green
-    ReviewMode.Hard -> CatchLingoColor.Amber
-}
-
-private fun ReviewMode.softColor() = when (this) {
-    ReviewMode.Easy -> CatchLingoColor.GreenSoft
-    ReviewMode.Hard -> CatchLingoColor.AmberSoft
-}
-
-private enum class ReviewMode(
-    val title: String,
-    val headline: String,
-    val subtitle: String,
-    val helperText: String,
-    val shortTitle: String,
-    val shortSubtitle: String,
-) {
-    Easy(
-        title = "Easy Mode",
-        headline = "Bild hilft dir",
-        subtitle = "Mit visueller Erinnerung",
-        helperText = "Sieh das Bild und erinnere dich entspannt an das Wort.",
-        shortTitle = "Easy",
-        shortSubtitle = "Mit Bild",
-    ),
-    Hard(
-        title = "Hard Mode",
-        headline = "Nur das Wort",
-        subtitle = "Ruhig, ohne Zusatzhilfe",
-        helperText = "Nimm dir einen Moment und prüfe, ob das Wort schon vertraut ist.",
-        shortTitle = "Hard",
-        shortSubtitle = "Nur Wort",
-    ),
 }

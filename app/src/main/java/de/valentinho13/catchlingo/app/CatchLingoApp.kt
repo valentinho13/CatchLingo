@@ -129,7 +129,9 @@ fun CatchLingoApp() {
                         words = discoveredWords,
                         onFeedback = showFeedback,
                     )
-                    CatchLingoDestination.Review -> ReviewScreen(onFeedback = showFeedback)
+                    CatchLingoDestination.Review -> ReviewScreen(
+                        words = discoveredWords,
+                    )
                 }
             }
         }
