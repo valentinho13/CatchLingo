@@ -133,7 +133,7 @@ private enum class Vocabulary(
         source = "chair",
         category = "Zuhause",
         labels = setOf("chair"),
-        minConfidence = 0.74f,
+        minConfidence = 0.86f,
     ),
     Table(
         id = "meja",
@@ -290,7 +290,7 @@ private enum class Vocabulary(
         source = "phone",
         category = "Unterwegs",
         labels = setOf("phone", "mobile phone", "cellphone", "cell phone", "smartphone"),
-        minConfidence = 0.78f,
+        minConfidence = 0.90f,
     ),
     Bag(
         id = "tas",
@@ -439,4 +439,4 @@ private enum class Vocabulary(
 }
 
 private const val DefaultMinConfidence = 0.62f
-private val ExactLabelMatchIds = setOf("anjing", "kursi", "ponsel")
+private val ExactLabelMatchIds = setOf("anjing", "gelas", "kursi", "matahari", "meja", "ponsel")
