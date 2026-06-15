@@ -40,6 +40,7 @@ internal data class DiscoveryDiagnosticEvent(
     val decision: DiscoveryDiagnosticDecision,
     val reasons: List<String> = emptyList(),
     val objectDetection: ObjectDetectionDiagnostics? = null,
+    val cropLabeling: CropLabelingDiagnostics? = null,
 ) {
     fun toJson(): String = buildString {
         append("{")
@@ -100,6 +101,10 @@ internal data class DiscoveryDiagnosticEvent(
             append(",\"objectDetection\":")
             append(diagnostics.toJson())
         }
+        cropLabeling?.let { diagnostics ->
+            append(",\"cropLabeling\":")
+            append(diagnostics.toJson())
+        }
         append("}")
     }
 }
@@ -152,6 +157,22 @@ internal class DiscoveryDiagnosticsHistory(
             }
             appendLine("- object count buckets:")
             objectCountBuckets.forEach { (value, count) ->
+                appendLine("  - $value: $count")
+            }
+        }
+        appendLine()
+        appendLine("Crop labeling:")
+        val cropAttempts = entries.countCropAttempts()
+        if (cropAttempts == 0) {
+            appendLine("- no crop metadata")
+        } else {
+            val cropSuccesses = entries.countCropSuccesses()
+            val changedTopLabels = entries.countChangedCropTopLabels()
+            appendLine("- attempts: $cropAttempts")
+            appendLine("- success rate: ${String.format(Locale.US, "%.2f", cropSuccesses.toFloat() / cropAttempts)}")
+            appendLine("- changed top label: $changedTopLabels/$cropSuccesses")
+            appendLine("- most common crop labels:")
+            entries.countNestedLabelValues("cropLabels").take(8).forEach { (value, count) ->
                 appendLine("  - $value: $count")
             }
         }
@@ -225,6 +246,7 @@ internal fun buildDiagnosticEvent(
     selectedCandidateId: String? = null,
     reasons: List<String> = emptyList(),
     objectDetection: ObjectDetectionDiagnostics? = null,
+    cropLabeling: CropLabelingDiagnostics? = null,
 ): DiscoveryDiagnosticEvent = DiscoveryDiagnosticEvent(
     timestampMillis = timestampMillis,
     labels = labels.take(MaxDiagnosticLabels),
@@ -238,6 +260,7 @@ internal fun buildDiagnosticEvent(
     decision = decision,
     reasons = reasons,
     objectDetection = objectDetection,
+    cropLabeling = cropLabeling,
 )
 
 internal fun buildAlreadyKnownDiagnosticEvent(
@@ -291,6 +314,38 @@ private fun NormalizedObjectBox.toJson(): String = buildString {
     append("}")
 }
 
+private fun CropLabelingDiagnostics.toJson(): String = buildString {
+    append("{")
+    appendJsonField("cropSuccess", cropSuccess)
+    append(",")
+    appendJsonField("cropFailureReason", cropFailureReason)
+    append(",\"wholeFrameLabels\":")
+    append(wholeFrameLabels.toJsonArray { label -> label.toJson() })
+    append(",\"cropLabels\":")
+    append(cropLabels.toJsonArray { label -> label.toJson() })
+    append(",\"labelComparison\":")
+    append(labelComparison.toJson())
+    append("}")
+}
+
+private fun LabelComparisonSummary.toJson(): String = buildString {
+    append("{")
+    appendJsonField("topWholeFrameLabel", topWholeFrameLabel)
+    append(",")
+    appendJsonField("topCropLabel", topCropLabel)
+    append(",")
+    appendJsonField("didCropChangeTopLabel", didCropChangeTopLabel)
+    append("}")
+}
+
+private fun MlLabelObservation.toJson(): String = buildString {
+    append("{")
+    appendJsonField("text", text)
+    append(",")
+    appendJsonField("confidence", confidence)
+    append("}")
+}
+
 private fun String.timestampMillisFromJson(): Long {
     val marker = "\"timestampMillis\":"
     val start = indexOf(marker)
@@ -334,6 +389,30 @@ private fun List<String>.averageNumericFieldValue(fieldName: String): Double? {
         regex.findAll(entry).mapNotNull { match -> match.groupValues[1].toDoubleOrNull() }.toList()
     }
     return values.takeIf { it.isNotEmpty() }?.average()
+}
+
+private fun List<String>.countCropAttempts(): Int =
+    count { it.contains("\"cropLabeling\":") }
+
+private fun List<String>.countCropSuccesses(): Int =
+    count { it.contains("\"cropSuccess\":true") }
+
+private fun List<String>.countChangedCropTopLabels(): Int =
+    count { it.contains("\"didCropChangeTopLabel\":true") }
+
+private fun List<String>.countNestedLabelValues(arrayFieldName: String): List<Pair<String, Int>> {
+    val arrayRegex = Regex("\"${Regex.escape(arrayFieldName)}\":\\[(.*?)]")
+    val labelRegex = Regex("\"text\":\"([^\"]+)\"")
+    return flatMap { entry ->
+        arrayRegex.findAll(entry).flatMap { arrayMatch ->
+            labelRegex.findAll(arrayMatch.groupValues[1]).map { labelMatch -> labelMatch.groupValues[1] }
+        }.toList()
+    }
+        .groupingBy { it }
+        .eachCount()
+        .entries
+        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+        .map { it.key to it.value }
 }
 
 private fun StringBuilder.appendJsonField(name: String, value: String?) {

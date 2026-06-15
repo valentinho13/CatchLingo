@@ -148,12 +148,53 @@ class DiscoveryDiagnosticsLogTest {
         assertTrue(text.contains("  - 3: 1"))
     }
 
+    @Test
+    fun cropLabelingMetadataIsSerializedAndSummarized() {
+        val history = DiscoveryDiagnosticsHistory()
+            .add(
+                sampleEvent(
+                    timestampMillis = 1L,
+                    cropLabeling = buildSuccessfulCropLabelingDiagnostics(
+                        wholeFrameLabels = listOf(MlLabelObservation("Sink", 0.71f)),
+                        cropLabels = listOf(MlLabelObservation("Bowl", 0.82f)),
+                    ),
+                ),
+            )
+            .add(
+                sampleEvent(
+                    timestampMillis = 2L,
+                    cropLabeling = buildSkippedCropLabelingDiagnostics(
+                        reason = CROP_FAILURE_NO_TARGET,
+                        wholeFrameLabels = listOf(MlLabelObservation("Room", 0.60f)),
+                    ),
+                ),
+            )
+
+        val json = history.exportJson()
+        assertTrue(json.contains("\"cropLabeling\""))
+        assertTrue(json.contains("\"wholeFrameLabels\""))
+        assertTrue(json.contains("\"cropLabels\""))
+        assertTrue(json.contains("\"cropSuccess\":true"))
+        assertTrue(json.contains("\"cropFailureReason\":\"no-target\""))
+        assertTrue(json.contains("\"topWholeFrameLabel\":\"Sink\""))
+        assertTrue(json.contains("\"topCropLabel\":\"Bowl\""))
+        assertTrue(json.contains("\"didCropChangeTopLabel\":true"))
+
+        val text = history.exportText()
+        assertTrue(text.contains("Crop labeling:"))
+        assertTrue(text.contains("- attempts: 2"))
+        assertTrue(text.contains("- success rate: 0.50"))
+        assertTrue(text.contains("- changed top label: 1/1"))
+        assertTrue(text.contains("  - Bowl: 1"))
+    }
+
     private fun sampleEvent(
         timestampMillis: Long = 42L,
         decision: DiscoveryDiagnosticDecision = DiscoveryDiagnosticDecision.AutoAccepted,
         selectedCandidateId: String? = null,
         finalCandidateId: String? = "ponsel",
         objectDetection: ObjectDetectionDiagnostics? = null,
+        cropLabeling: CropLabelingDiagnostics? = null,
     ): DiscoveryDiagnosticEvent = DiscoveryDiagnosticEvent(
         timestampMillis = timestampMillis,
         labels = listOf(MlLabelObservation(text = "Mobile phone", confidence = 0.92f)),
@@ -173,5 +214,6 @@ class DiscoveryDiagnosticsLogTest {
         decision = decision,
         reasons = listOf("RiskyWord"),
         objectDetection = objectDetection,
+        cropLabeling = cropLabeling,
     )
 }

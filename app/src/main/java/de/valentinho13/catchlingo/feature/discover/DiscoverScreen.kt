@@ -3,6 +3,12 @@ package de.valentinho13.catchlingo.feature.discover
 import android.Manifest
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageFormat
+import android.graphics.Matrix
+import android.graphics.Rect
+import android.graphics.YuvImage
 import android.util.Log
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -112,6 +118,7 @@ import de.valentinho13.catchlingo.designsystem.components.CatchLingoHeroCard
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoSpecimenCard
 import de.valentinho13.catchlingo.designsystem.components.MiniPill
 import de.valentinho13.catchlingo.designsystem.rememberCatchLingoHaptics
+import java.io.ByteArrayOutputStream
 import java.util.Locale
 import java.util.concurrent.Executors
 import kotlin.math.cos
@@ -766,6 +773,8 @@ private fun analyzeDiscoveryFrame(
         .addOnSuccessListener {
             if (!imageLabelingTask.isSuccessful) {
                 onMlUnavailable()
+                discoveryGate.finish()
+                imageProxy.close()
                 return@addOnSuccessListener
             }
 
@@ -783,9 +792,7 @@ private fun analyzeDiscoveryFrame(
                 enabled = mlDiagnosticsEnabled,
             )
 
-            val originalLabels = labels.map { label ->
-                MlLabelObservation(text = label.text, confidence = label.confidence)
-            }
+            val originalLabels = labels.toMlLabelObservations()
             val directCandidates = labels.mapNotNull { label ->
                 mapLabelToVocabulary(label.text)?.let { match ->
                     DiscoveryCandidate(labelText = label.text, confidence = label.confidence, match = match)
@@ -858,32 +865,41 @@ private fun analyzeDiscoveryFrame(
                 pendingConfirmation = pendingConfirmation,
                 enabled = mlDiagnosticsEnabled,
             )
-            onDiagnosticEvent(
-                buildDiagnosticEvent(
-                    timestampMillis = System.currentTimeMillis(),
-                    labels = originalLabels,
-                    candidates = mappedLabels,
-                    decision = decision.toDiagnosticDecision(pendingConfirmation),
-                    proposedCandidateId = decision.match?.id,
-                    finalCandidateId = if (
-                        decision.status == DiscoveryDecisionStatus.Accepted &&
-                        pendingConfirmation == null
-                    ) {
-                        decision.match?.id
+            val diagnosticEvent = buildDiagnosticEvent(
+                timestampMillis = System.currentTimeMillis(),
+                labels = originalLabels,
+                candidates = mappedLabels,
+                decision = decision.toDiagnosticDecision(pendingConfirmation),
+                proposedCandidateId = decision.match?.id,
+                finalCandidateId = if (
+                    decision.status == DiscoveryDecisionStatus.Accepted &&
+                    pendingConfirmation == null
+                ) {
+                    decision.match?.id
+                } else {
+                    null
+                },
+                reasons = buildList {
+                    add("context=${rankedCandidates.context.name}")
+                    if (pendingConfirmation != null) {
+                        addAll(pendingConfirmation.reasons.map { it.name })
                     } else {
-                        null
-                    },
-                    reasons = buildList {
-                        add("context=${rankedCandidates.context.name}")
-                        if (pendingConfirmation != null) {
-                            addAll(pendingConfirmation.reasons.map { it.name })
-                        } else {
-                            addAll(decision.diagnosticReasons())
-                        }
-                    },
-                    objectDetection = objectDiagnostics,
-                ),
+                        addAll(decision.diagnosticReasons())
+                    }
+                },
+                objectDetection = objectDiagnostics,
             )
+            labelSelectedObjectCropForDiagnostics(
+                imageProxy = imageProxy,
+                imageLabeler = imageLabeler,
+                objectDetection = objectDiagnostics,
+                wholeFrameLabels = originalLabels,
+                enabled = mlDiagnosticsEnabled,
+            ) { cropLabeling ->
+                onDiagnosticEvent(diagnosticEvent.copy(cropLabeling = cropLabeling))
+                discoveryGate.finish()
+                imageProxy.close()
+            }
 
             if (decision.status == DiscoveryDecisionStatus.Accepted && decision.match != null) {
                 if (pendingConfirmation == null) {
@@ -897,11 +913,118 @@ private fun analyzeDiscoveryFrame(
         }
         .addOnFailureListener {
             onMlUnavailable()
-        }
-        .addOnCompleteListener {
             discoveryGate.finish()
             imageProxy.close()
         }
+}
+
+private fun labelSelectedObjectCropForDiagnostics(
+    imageProxy: ImageProxy,
+    imageLabeler: ImageLabeler,
+    objectDetection: ObjectDetectionDiagnostics?,
+    wholeFrameLabels: List<MlLabelObservation>,
+    enabled: Boolean,
+    onComplete: (CropLabelingDiagnostics) -> Unit,
+) {
+    if (!enabled) {
+        onComplete(buildSkippedCropLabelingDiagnostics(CROP_FAILURE_NO_TARGET, wholeFrameLabels))
+        return
+    }
+
+    val selectedBox = objectDetection?.selected?.box
+    val boundsResult = calculateCropBounds(
+        selectedBox = selectedBox,
+        frameWidth = imageProxy.rotatedFrameWidth(),
+        frameHeight = imageProxy.rotatedFrameHeight(),
+    )
+    val bounds = boundsResult.getOrElse { error ->
+        val reason = error.message ?: CROP_FAILURE_INVALID_BOUNDS
+        logCropLabelingSkippedOrFailed(reason = reason, wholeFrameLabels = wholeFrameLabels)
+        onComplete(buildSkippedCropLabelingDiagnostics(reason, wholeFrameLabels))
+        return
+    }
+
+    val cropBitmap = runCatching {
+        imageProxy.createRotatedCrop(bounds)
+    }.getOrElse {
+        logCropLabelingSkippedOrFailed(reason = CROP_FAILURE_BITMAP_CONVERSION, wholeFrameLabels = wholeFrameLabels)
+        onComplete(buildSkippedCropLabelingDiagnostics(CROP_FAILURE_BITMAP_CONVERSION, wholeFrameLabels))
+        return
+    }
+
+    imageLabeler.process(InputImage.fromBitmap(cropBitmap, 0))
+        .addOnSuccessListener { cropLabels ->
+            val cropObservations = cropLabels.toMlLabelObservations()
+            val diagnostics = buildSuccessfulCropLabelingDiagnostics(
+                wholeFrameLabels = wholeFrameLabels,
+                cropLabels = cropObservations,
+            )
+            logCropLabelingDiagnostics(diagnostics)
+            onComplete(diagnostics)
+        }
+        .addOnFailureListener {
+            logCropLabelingSkippedOrFailed(reason = CROP_FAILURE_LABELING_FAILED, wholeFrameLabels = wholeFrameLabels)
+            onComplete(buildSkippedCropLabelingDiagnostics(CROP_FAILURE_LABELING_FAILED, wholeFrameLabels))
+        }
+        .addOnCompleteListener {
+            cropBitmap.recycle()
+        }
+}
+
+private fun ImageProxy.createRotatedCrop(bounds: CropBounds): Bitmap {
+    val source = toJpegBackedBitmap()
+    val rotated = if (imageInfo.rotationDegrees == 0) {
+        source
+    } else {
+        val matrix = Matrix().apply { postRotate(imageInfo.rotationDegrees.toFloat()) }
+        Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true).also {
+            source.recycle()
+        }
+    }
+    return Bitmap.createBitmap(rotated, bounds.left, bounds.top, bounds.width, bounds.height).also {
+        rotated.recycle()
+    }
+}
+
+private fun ImageProxy.toJpegBackedBitmap(): Bitmap {
+    val nv21 = toNv21ByteArray()
+    val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
+    val output = ByteArrayOutputStream()
+    check(yuvImage.compressToJpeg(Rect(0, 0, width, height), 90, output)) {
+        "Unable to convert frame to JPEG"
+    }
+    val bytes = output.toByteArray()
+    return checkNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size)) {
+        "Unable to decode frame bitmap"
+    }
+}
+
+private fun ImageProxy.toNv21ByteArray(): ByteArray {
+    val yPlane = planes[0]
+    val uPlane = planes[1]
+    val vPlane = planes[2]
+    val output = ByteArray(width * height * 3 / 2)
+
+    var outputOffset = 0
+    for (row in 0 until height) {
+        val rowOffset = row * yPlane.rowStride
+        for (col in 0 until width) {
+            output[outputOffset++] = yPlane.buffer.get(rowOffset + col * yPlane.pixelStride)
+        }
+    }
+
+    val chromaWidth = width / 2
+    val chromaHeight = height / 2
+    for (row in 0 until chromaHeight) {
+        val uRowOffset = row * uPlane.rowStride
+        val vRowOffset = row * vPlane.rowStride
+        for (col in 0 until chromaWidth) {
+            output[outputOffset++] = vPlane.buffer.get(vRowOffset + col * vPlane.pixelStride)
+            output[outputOffset++] = uPlane.buffer.get(uRowOffset + col * uPlane.pixelStride)
+        }
+    }
+
+    return output
 }
 
 private fun buildDebugConfirmationCandidates(
@@ -928,6 +1051,9 @@ private fun List<com.google.mlkit.vision.label.ImageLabel>.debugRecognitionLine(
     }
     return "Erkannt: $labelSummary"
 }
+
+private fun List<com.google.mlkit.vision.label.ImageLabel>.toMlLabelObservations(): List<MlLabelObservation> =
+    map { label -> MlLabelObservation(text = label.text, confidence = label.confidence) }
 
 private fun List<DetectedObject>.toObjectDetectionDiagnostics(
     frameWidth: Int,
@@ -1028,6 +1154,33 @@ private fun logObjectDetectionDiagnostics(
                 "frame=${diagnostics.frameWidth}x${diagnostics.frameHeight}",
         )
     }
+}
+
+private fun logCropLabelingDiagnostics(diagnostics: CropLabelingDiagnostics) {
+    val comparison = diagnostics.labelComparison
+    Log.d(
+        ML_LOG_TAG,
+        "CropLabeling success " +
+            "top=${comparison.topCropLabel.orEmpty()} ${diagnostics.cropLabels.firstOrNull()?.confidence?.formatConfidence() ?: "0.00"} " +
+            "wholeTop=${comparison.topWholeFrameLabel.orEmpty()} " +
+            "${diagnostics.wholeFrameLabels.firstOrNull()?.confidence?.formatConfidence() ?: "0.00"} " +
+            "changed=${comparison.didCropChangeTopLabel}",
+    )
+}
+
+private fun logCropLabelingSkippedOrFailed(
+    reason: String,
+    wholeFrameLabels: List<MlLabelObservation>,
+) {
+    val prefix = if (reason == CROP_FAILURE_NO_TARGET || reason == CROP_FAILURE_TINY_CROP) {
+        "skipped"
+    } else {
+        "failed"
+    }
+    Log.d(
+        ML_LOG_TAG,
+        "CropLabeling $prefix reason=$reason wholeTop=${wholeFrameLabels.firstOrNull()?.text.orEmpty()}",
+    )
 }
 
 private fun DiscoveryDecision.describe(): String = when (status) {
