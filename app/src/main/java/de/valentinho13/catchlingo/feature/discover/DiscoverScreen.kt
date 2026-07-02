@@ -335,7 +335,7 @@ private fun ExploreScreen(
         if (selectedMatch != null) {
             val word = selectedMatch.toDiscoveredWord(System.currentTimeMillis())
             if (onWordCollected(word)) {
-                haptics.softTick()
+                haptics.catchHold()
                 magnetWord = word
                 caughtWord = null
                 catchVersion += 1
@@ -422,7 +422,7 @@ private fun ExploreScreen(
                     mlUnavailable = false
                     pendingConfirmation = null
                     if (onWordCollected(word)) {
-                        haptics.softTick()
+                        haptics.catchHold()
                         magnetWord = word
                         caughtWord = null
                         catchVersion += 1
