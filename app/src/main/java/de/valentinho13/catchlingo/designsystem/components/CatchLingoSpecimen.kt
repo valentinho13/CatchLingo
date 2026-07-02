@@ -32,10 +32,18 @@ fun CatchLingoSpecimenCard(
     context: String? = null,
     status: String? = null,
     onPronounceClick: (() -> Unit)? = null,
+    onTap: (() -> Unit)? = null,
 ) {
     val haptics = rememberCatchLingoHaptics()
     CatchLingoCard(
-        modifier = modifier,
+        modifier = if (onTap == null) {
+            modifier
+        } else {
+            modifier.catchLingoTactileClickable {
+                haptics.softTick()
+                onTap()
+            }
+        },
         contentPadding = PaddingValues(18.dp),
     ) {
         Column {
