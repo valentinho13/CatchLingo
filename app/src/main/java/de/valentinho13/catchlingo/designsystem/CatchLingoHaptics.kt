@@ -26,15 +26,31 @@ class CatchLingoHaptics internal constructor(
 
     fun catchHold() {
         runSafely {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && vibrator?.hasVibrator() == true) {
-                val effect = VibrationEffect.startComposition()
-                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_RISE, 0.45f)
-                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_SPIN, 0.35f, 45)
-                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.65f, 80)
-                    .compose()
-                vibrator.vibrate(effect)
-            } else {
-                fallback()
+            val vibrator = vibrator
+            when {
+                vibrator == null || !vibrator.hasVibrator() -> fallback()
+
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    vibrator.areAllPrimitivesSupported(
+                        VibrationEffect.Composition.PRIMITIVE_QUICK_RISE,
+                        VibrationEffect.Composition.PRIMITIVE_SPIN,
+                        VibrationEffect.Composition.PRIMITIVE_THUD,
+                    ) -> {
+                    val effect = VibrationEffect.startComposition()
+                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_RISE, 0.45f)
+                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_SPIN, 0.35f, 45)
+                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.65f, 80)
+                        .compose()
+                    vibrator.vibrate(effect)
+                }
+
+                // Devices without full primitive support (budget hardware on S+,
+                // and everything on R) get a plain waveform: the platform silently
+                // drops compositions containing unsupported primitives, so this
+                // branch is the only way the catch moment stays feelable there.
+                else -> vibrator.vibrate(
+                    VibrationEffect.createWaveform(CATCH_HOLD_FALLBACK_TIMINGS, -1),
+                )
             }
         }
     }
@@ -47,6 +63,12 @@ class CatchLingoHaptics internal constructor(
         } catch (_: RuntimeException) {
             fallback()
         }
+    }
+
+    private companion object {
+        // Off/on pattern approximating the composition's contour:
+        // short rise pulse, brief gap, heavier thud pulse (~165 ms total).
+        val CATCH_HOLD_FALLBACK_TIMINGS = longArrayOf(0, 30, 45, 90)
     }
 }
 
