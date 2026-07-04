@@ -81,6 +81,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -300,8 +302,14 @@ private fun ExploreScreen(
     var mlUnavailable by remember { mutableStateOf(false) }
     var magnetWord by remember { mutableStateOf<DiscoveredWord?>(null) }
     var caughtWord by remember { mutableStateOf<DiscoveredWord?>(null) }
+    // Hält den letzten Fund fest, damit die Karte während der Exit-Animation befüllt bleibt.
+    var heldSpecimen by remember { mutableStateOf<DiscoveredWord?>(null) }
+    caughtWord?.let { heldSpecimen = it }
     var alreadyKnownWord by remember { mutableStateOf<DiscoveredWord?>(null) }
     var pendingConfirmation by remember { mutableStateOf<PendingDiscoveryConfirmation?>(null) }
+    // Während der Haltephase aufgeschobene Confirmation (nur die letzte, keine Queue):
+    // der Accepted-Pfad wäre nach dem DiscoveryGate sonst bis zu 30 s DuplicateBlocked.
+    var deferredConfirmation by remember { mutableStateOf<PendingDiscoveryConfirmation?>(null) }
     var correctionHistory by remember { mutableStateOf(DiscoveryCorrectionHistory()) }
     var catchVersion by remember { mutableIntStateOf(0) }
     var alreadyKnownVersion by remember { mutableIntStateOf(0) }
@@ -335,6 +343,8 @@ private fun ExploreScreen(
         if (selectedMatch != null) {
             val word = selectedMatch.toDiscoveredWord(System.currentTimeMillis())
             if (onWordCollected(word)) {
+                // Neuer Catch hat Vorrang: gepufferte Confirmation verwerfen.
+                deferredConfirmation = null
                 haptics.catchHold()
                 magnetWord = word
                 caughtWord = null
@@ -391,7 +401,7 @@ private fun ExploreScreen(
             caughtWord = null
             delay(680)
             caughtWord = word
-            delay(2_500)
+            delay(CatchLingoMotion.CatchHold.toLong())
             magnetWord = null
             caughtWord = null
         }
@@ -402,6 +412,16 @@ private fun ExploreScreen(
         if (word != null) {
             delay(2_200)
             alreadyKnownWord = null
+        }
+    }
+
+    // Nach dem Loslassen der SpecimenCard die aufgeschobene Confirmation präsentieren.
+    LaunchedEffect(magnetWord) {
+        if (magnetWord == null) {
+            deferredConfirmation?.let { confirmation ->
+                deferredConfirmation = null
+                pendingConfirmation = confirmation
+            }
         }
     }
 
@@ -422,14 +442,20 @@ private fun ExploreScreen(
                     mlUnavailable = false
                     pendingConfirmation = null
                     if (onWordCollected(word)) {
+                        // Neuer Catch hat Vorrang: gepufferte Confirmation verwerfen.
+                        deferredConfirmation = null
                         haptics.catchHold()
                         magnetWord = word
                         caughtWord = null
                         catchVersion += 1
                     } else {
-                        haptics.softTick()
-                        alreadyKnownWord = word
-                        alreadyKnownVersion += 1
+                        // Während der Haltephase keine zweite Card und kein Tick (A6);
+                        // das Diagnostik-Event bleibt unverändert bestehen.
+                        if (magnetWord == null) {
+                            haptics.softTick()
+                            alreadyKnownWord = word
+                            alreadyKnownVersion += 1
+                        }
                         diagnosticsRepository.addEvent(
                             buildAlreadyKnownDiagnosticEvent(
                                 timestampMillis = System.currentTimeMillis(),
@@ -441,9 +467,24 @@ private fun ExploreScreen(
                 },
                 onConfirmationPending = { confirmation ->
                     mlUnavailable = false
-                    pendingConfirmation = confirmation
-                    magnetWord = null
-                    caughtWord = null
+                    if (magnetWord == null) {
+                        pendingConfirmation = confirmation
+                    } else {
+                        // Aufschieben statt verwerfen: Accepted-Pfad-Confirmations kämen wegen
+                        // des Duplikat-Fensters im DiscoveryGate sonst bis zu 30 s nicht wieder.
+                        deferredConfirmation = confirmation
+                        diagnosticsRepository.addEvent(
+                            buildDiagnosticEvent(
+                                timestampMillis = System.currentTimeMillis(),
+                                labels = confirmation.originalLabels,
+                                candidates = confirmation.candidates,
+                                decision = DiscoveryDiagnosticDecision.PendingConfirmation,
+                                proposedCandidateId = confirmation.proposedWord.id,
+                                reasons = confirmation.reasons.map { it.name } +
+                                    "confirmationDeferredDuringHeldSpecimenCard",
+                            ),
+                        )
+                    }
                 },
                 onDiagnosticEvent = { event ->
                     diagnosticsRepository.addEvent(event)
@@ -476,16 +517,51 @@ private fun ExploreScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         }
+        caughtWord?.let {
+            SpecimenBloomLayer(
+                trigger = catchVersion,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         AnimatedVisibility(
             visible = caughtWord != null,
-            enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.96f),
-            exit = fadeOut(tween(260)) + scaleOut(targetScale = 0.98f),
+            enter = fadeIn(tween(CatchLingoMotion.Screen, easing = CatchLingoMotion.EaseOutSoft)) +
+                scaleIn(
+                    initialScale = 0.92f,
+                    animationSpec = tween(CatchLingoMotion.Screen, easing = CatchLingoMotion.EaseOutSoft),
+                ),
+            exit = fadeOut(tween(CatchLingoMotion.Chip, easing = CatchLingoMotion.EaseOutSoft)) +
+                scaleOut(
+                    targetScale = 0.98f,
+                    animationSpec = tween(CatchLingoMotion.Chip, easing = CatchLingoMotion.EaseOutSoft),
+                ),
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(horizontal = 30.dp),
         ) {
-            caughtWord?.let { word ->
-                CatchConfirmationCard(word = word)
+            heldSpecimen?.let { word ->
+                CatchLingoSpecimenCard(
+                    word = word.word,
+                    source = word.source,
+                    context = word.category,
+                    status = "Neu im Journal",
+                    // Vorzeitiges Loslassen; kein zusätzlicher Haptik-Tick (der onTap-Wrapper
+                    // der Komponente tickt selbst). Während des Exits nicht mehr klickbar.
+                    onTap = if (caughtWord == null) {
+                        null
+                    } else {
+                        {
+                            magnetWord = null
+                            caughtWord = null
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            contentDescription =
+                                "Fund festgehalten: ${word.word}. Zum Weiterentdecken antippen."
+                        },
+                )
             }
         }
         AnimatedVisibility(
@@ -1421,60 +1497,38 @@ private val MagnetMoteCurves = floatArrayOf(
 )
 
 @Composable
-private fun CatchConfirmationCard(
-    word: DiscoveredWord,
+private fun SpecimenBloomLayer(
+    trigger: Int,
     modifier: Modifier = Modifier,
 ) {
-    CatchLingoCard(
-        modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                modifier = Modifier.size(48.dp),
-                shape = CircleShape,
-                color = CatchLingoColor.AmberSoft,
-                contentColor = CatchLingoColor.AmberDeep,
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.AutoAwesome,
-                    contentDescription = null,
-                    modifier = Modifier.padding(12.dp),
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 14.dp),
-            ) {
-                Text(
-                    text = "Gesammelt",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = CatchLingoColor.AmberDeep,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = word.word,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = CatchLingoColor.TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = word.source,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = CatchLingoColor.TextMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            MiniPill(
-                text = "Neu",
-                color = CatchLingoColor.GreenSoft,
-                contentColor = CatchLingoColor.GreenDeep,
-            )
-        }
+    val progress = remember { Animatable(0f) }
+
+    LaunchedEffect(trigger) {
+        progress.snapTo(0f)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(CatchLingoMotion.Bloom, easing = CatchLingoMotion.EaseOutSoft),
+        )
+    }
+
+    Canvas(modifier = modifier) {
+        val p = progress.value
+        if (p >= 1f) return@Canvas
+        val fade = 1f - p
+        val center = Offset(size.width * 0.5f, size.height * 0.5f)
+        val radius = size.width * (0.30f + p * 0.34f)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    CatchLingoColor.AmberSoft.copy(alpha = fade * 0.42f),
+                    CatchLingoColor.AmberSoft.copy(alpha = 0f),
+                ),
+                center = center,
+                radius = radius,
+            ),
+            radius = radius,
+            center = center,
+        )
     }
 }
 
