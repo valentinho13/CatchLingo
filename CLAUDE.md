@@ -33,16 +33,15 @@ persönliches Field-Journal an — kein Scanner, HUD, Lernspiel oder Tech-Demo.
 ## Subagent-Routing
 
 Routing, Ownership und Übergabeformate stehen in `.claude/agents/README.md`. Vor Delegation den passenden
-primären Agent wählen; Review-Agenten erst danach einsetzen. Produkt-, UX- und Content-Spezialisten bleiben
-erhalten, ergänzt um sechs Engineering-Agenten für Compose, Discover/ML, Learning/Data, Motion, Design-Review
-und technische QA.
+primären Agent wählen; Review-Agenten erst danach einsetzen. Die Zuständigkeiten decken Produkt/Strategie, UX,
+Kamera/ML, Learning-Content, Kotlin/Compose-Umsetzung und technische QA ab.
 
 ## Verweise
 
 - Agent-Routing: `.claude/agents/README.md`
 - Designvision: `docs/reference/DESIGN_VISION.md`
 - Motion-Playbook: `docs/design/MOTION_PLAYBOOK.md`
-- Ausführliche Motion-Guidelines: `docs/motion/MOTION_GUIDELINES.md`
+- Ausführliche Motion-Guidelines: `docs/design/MOTION_GUIDELINES.md`
 - Katzen-Canon: `docs/design/cat_character_sheet.md`
 
 ## Arbeitsregeln

@@ -5,7 +5,7 @@
 > es macht den Canon textuell prüfbar. Solange das PNG fehlt, bleibt die *visuelle* Canon **eingeschränkt**.
 >
 > Verbindliche Ergänzung zu den Referenz-Assets `docs/design/app_icon_reference.jpg` und
-> `docs/design/catchlingo_ui_vision_v1.png`. Prüfmaßstab für `design-guardian`.
+> `docs/design/catchlingo_ui_vision_v1.png`. Prüfmaßstab für `catchlingo-ux-designer` und QA-Review.
 
 ## Rolle der Katze
 - Eine **echte orange Tabby-Hauskatze** – kein Logo, kein Maskottchen, das eine Katze spielt.
@@ -62,7 +62,7 @@
 - **Keine Schuldzuweisung** an den Nutzer.
 - **Keine Fake-Kandidaten**, kein überdramatisches Scheitern.
 
-## Review-Checkliste für `design-guardian`
+## Review-Checkliste für Design-Review (`catchlingo-ux-designer`)
 - [ ] Wirkt die Katze wie eine echte orange Tabby?
 - [ ] Würde sie auch ohne Accessoires erkennbar bleiben?
 - [ ] Ist sie ruhig und nicht performativ?
