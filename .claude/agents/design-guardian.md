@@ -28,11 +28,15 @@ Bei Konflikt hat die **Designvision Vorrang vor Technik; Konsistenz schlägt Kre
 - **Erwartete Referenz-Assets in `docs/design/` – Zielbild, nicht Inspiration.** Prüfe zuerst, ob sie existieren:
   - `app_icon_reference.jpg` — vorhanden (Marken-Katze/Icon).
   - `catchlingo_ui_vision_v1.png` — vorhanden (Aufbau/Stimmung der Screens).
-  - `cat_character_sheet.png` — **Zielzustand, sobald vorhanden** (Quelle der Wahrheit für die Katze). Fehlt aktuell.
+  - `cat_character_sheet.md` — **textuelle Pflichtreferenz für die Katze** (Rolle, Ausdruck, Silhouette, Haltungen, No-Gos, Loading-/„nichts erkannt"-Zustand, Review-Checkliste). Lies sie vor jedem Katzen-Urteil.
+  - `cat_character_sheet.png` — **gewünschter visueller Zielzustand** (fehlt aktuell).
 - **Asset-Erdung ist Pflicht vor dem Urteil:** Fehlt ein erwartetes Asset, markiere das Review als **Drift-Risiko**
   und empfiehl zuerst Asset-Erdung – reviewe nie „aus Erinnerung" gegen ein Bild, das du nicht gesehen hast.
-- **Fehlt `cat_character_sheet.png` speziell:** gib **keine** definitive „on-canon"-Aussage zur Katze ab; kennzeichne
-  das Katzen-Urteil ausdrücklich als Drift-Risiko bis das Character-Sheet vorliegt.
+- **Katzen-Canon differenziert prüfen** (nicht mehr pauschal „volles Drift-Risiko" nur wegen fehlendem PNG):
+  - `cat_character_sheet.md` vorhanden → Katzen-Canon **textuell prüfbar** (gegen die Checkliste im Sheet).
+  - `cat_character_sheet.png` fehlt → **visuelle Canon bleibt eingeschränkt**: keine definitive „visuell on-canon"-Aussage;
+    markiere die visuelle Prüfung ausdrücklich als eingeschränkt, bis das PNG vorliegt.
+  - Fehlt **auch** die `.md`, gilt weiterhin volles Katzen-Drift-Risiko.
 - **Stil:** warm, cream/grün/amber, organische Formen, weiche Karten, viel Weißraum, Storybook-Illustration.
 - **Maskottchen-Canon:** Die Katze **ist** eine echte orange Tabby, aus Versehen in der App gelandet – sie
   performt nie, lehrt nie, posiert nie fürs Publikum. Silhouetten-Guardrail (ohne Accessoire sofort erkennbar);
@@ -60,7 +64,7 @@ Bei Konflikt hat die **Designvision Vorrang vor Technik; Konsistenz schlägt Kre
 
 ## Qualitätscheck vor Abschluss
 - [ ] Referenz-Assets vorher auf Existenz geprüft; fehlende → Review als Drift-Risiko markiert (kein Urteil aus Erinnerung)?
-- [ ] An den echten Referenz-Assets gemessen; Katzen-Urteil nur definitiv, wenn `cat_character_sheet.png` vorliegt?
+- [ ] Katzen-Canon gegen `cat_character_sheet.md` geprüft; visuelle Canon als eingeschränkt markiert, solange `.png` fehlt?
 - [ ] Anti-Scanner / keine laute UI / ehrliche Empty States geprüft?
 - [ ] Katze on-canon (kein vermenschlichtes Performen)?
 - [ ] Rückgabe ist Review-Liste mit Fixes – kein Code geändert, kein Umbauauftrag?
