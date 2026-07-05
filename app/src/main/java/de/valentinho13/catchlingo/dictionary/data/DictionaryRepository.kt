@@ -7,7 +7,7 @@ import de.valentinho13.catchlingo.dictionary.model.Word
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Eigentum des learning-data-engineer: Datenmodell + Lernfluss.
+ * Ownership: learning/domain persistence layer – Datenmodell + Lernfluss.
  *
  * Asynchron und beobachtbar, damit spätere Room-Persistenz und UI-Beobachtung sauber andocken:
  * Schreiboperationen sind `suspend`, Leseoperationen liefern `Flow`. ALLE
