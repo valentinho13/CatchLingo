@@ -6,6 +6,11 @@ import de.valentinho13.catchlingo.dictionary.model.ReviewState
 import de.valentinho13.catchlingo.dictionary.model.Word
 import kotlinx.coroutines.flow.Flow
 
+data class ConfirmResult(
+    val word: Word,
+    val isNew: Boolean,
+)
+
 /**
  * Ownership: learning/domain persistence layer – Datenmodell + Lernfluss.
  *
@@ -18,7 +23,7 @@ interface DictionaryRepository {
 
     /** Bestätigt einen Kandidaten. find-or-create Word (eindeutig per normalisiertem Label + Sprache)
      *  und hängt einen CONFIRMED-CatchEvent an. Wiederbegegnung → kein neues Word, aber neuer CatchEvent. */
-    suspend fun confirm(candidate: Candidate, targetLanguage: String): Word
+    suspend fun confirm(candidate: Candidate, targetLanguage: String): ConfirmResult
 
     /** Lehnt einen Kandidaten ab: kein Word, aber ein REJECTED-CatchEvent (ehrliche Diagnostik). */
     suspend fun reject(candidate: Candidate)

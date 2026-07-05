@@ -47,10 +47,12 @@ class RoomDictionaryRepositoryTest {
 
     @Test
     fun confirmingSameCandidateTwice_keepsSingleWord_butRecordsTwoConfirmedEvents() = runTest {
-        repo.confirm(candidate("Cup"), targetLanguage = "es")
+        val first = repo.confirm(candidate("Cup"), targetLanguage = "es")
         time.now = 5_000L
-        repo.confirm(candidate("Cup"), targetLanguage = "es")
+        val second = repo.confirm(candidate("Cup"), targetLanguage = "es")
 
+        assertTrue(first.isNew)
+        assertTrue(!second.isNew)
         assertEquals(1, repo.observeDictionary().first().size)
         val confirmed = repo.observeCatchEvents().first().filter { it.status == CatchStatus.CONFIRMED }
         assertEquals(2, confirmed.size)
@@ -72,7 +74,7 @@ class RoomDictionaryRepositoryTest {
     @Test
     fun confirmedWord_isReviewDue() = runTest {
         time.now = 2_500L
-        val word = repo.confirm(candidate("Chair"), targetLanguage = "es")
+        val word = repo.confirm(candidate("Chair"), targetLanguage = "es").word
 
         assertEquals(2_500L, word.createdAt)
         assertEquals(null, word.translation)

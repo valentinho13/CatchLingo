@@ -2,7 +2,7 @@ package de.valentinho13.catchlingo.feature.discover
 
 import de.valentinho13.catchlingo.data.DiscoveredWord
 
-internal data class VocabularyMatch(
+data class VocabularyMatch(
     val id: String,
     val word: String,
     val source: String,
@@ -20,11 +20,13 @@ internal fun mapLabelToVocabulary(label: String): VocabularyMatch? {
 internal fun mapLabelToSoftVocabulary(label: String): VocabularyMatch? {
     val normalized = label.lowercase()
     val targetId = SoftConfirmationLabelIds[normalized] ?: return null
-    return vocabularyById(targetId)
+    return findVocabularyById(targetId)
 }
 
-internal fun vocabularyById(id: String): VocabularyMatch? =
+internal fun findVocabularyById(id: String): VocabularyMatch? =
     Vocabulary.entries.firstOrNull { entry -> entry.id == id }?.toMatch()
+
+internal fun vocabularyById(id: String): VocabularyMatch? = findVocabularyById(id)
 
 internal fun VocabularyMatch.toDiscoveredWord(nowMillis: Long): DiscoveredWord = DiscoveredWord(
     id = id,
