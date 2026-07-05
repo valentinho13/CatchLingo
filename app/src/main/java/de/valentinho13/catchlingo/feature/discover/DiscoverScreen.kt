@@ -136,14 +136,14 @@ fun DiscoverScreen(
     exploreState: DiscoverUiState = PreviewDiscoverState,
     onStartExplore: () -> Unit = {},
     onLeaveExplore: () -> Unit = {},
-    onWordCollected: (DiscoveredWord) -> Boolean = { false },
+    onVocabularyConfirmed: (VocabularyMatch, Float) -> Boolean = { _, _ -> false },
     onFeedback: (String) -> Unit = {},
 ) {
     if (exploreFullScreen) {
         ExploreScreen(
             state = exploreState,
             onLeaveExplore = onLeaveExplore,
-            onWordCollected = onWordCollected,
+            onVocabularyConfirmed = onVocabularyConfirmed,
             modifier = modifier,
         )
     } else {
@@ -283,7 +283,7 @@ private fun WarmPreviewCard(onPronounceClick: () -> Unit) {
 private fun ExploreScreen(
     state: DiscoverUiState,
     onLeaveExplore: () -> Unit,
-    onWordCollected: (DiscoveredWord) -> Boolean,
+    onVocabularyConfirmed: (VocabularyMatch, Float) -> Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -342,7 +342,11 @@ private fun ExploreScreen(
         pendingConfirmation = null
         if (selectedMatch != null) {
             val word = selectedMatch.toDiscoveredWord(System.currentTimeMillis())
-            if (onWordCollected(word)) {
+            val confidence = confirmation.candidates
+                .firstOrNull { it.match.id == selectedMatch.id }
+                ?.confidence
+                ?: Float.NaN
+            if (onVocabularyConfirmed(selectedMatch, confidence)) {
                 // Neuer Catch hat Vorrang: gepufferte Confirmation verwerfen.
                 deferredConfirmation = null
                 haptics.catchHold()
@@ -438,10 +442,11 @@ private fun ExploreScreen(
                 onMlUnavailable = {
                     mlUnavailable = true
                 },
-                onWordCollected = { word ->
+                onVocabularyConfirmed = { match, confidence ->
                     mlUnavailable = false
                     pendingConfirmation = null
-                    if (onWordCollected(word)) {
+                    val word = match.toDiscoveredWord(System.currentTimeMillis())
+                    if (onVocabularyConfirmed(match, confidence)) {
                         // Neuer Catch hat Vorrang: gepufferte Confirmation verwerfen.
                         deferredConfirmation = null
                         haptics.catchHold()
@@ -711,7 +716,7 @@ private fun CandidateConfirmationCard(
 private fun CameraXPreviewLayer(
     onStreamStateChanged: (Boolean) -> Unit,
     onMlUnavailable: () -> Unit,
-    onWordCollected: (DiscoveredWord) -> Unit,
+    onVocabularyConfirmed: (VocabularyMatch, Float) -> Unit,
     onConfirmationPending: (PendingDiscoveryConfirmation) -> Unit,
     onDiagnosticEvent: (DiscoveryDiagnosticEvent) -> Unit,
     onDebugRecognition: (String?) -> Unit,
@@ -782,7 +787,7 @@ private fun CameraXPreviewLayer(
                                     discoveryGate = discoveryGate,
                                     mlDiagnosticsEnabled = mlDiagnosticsEnabled,
                                     onMlUnavailable = onMlUnavailable,
-                                    onWordCollected = onWordCollected,
+                                    onVocabularyConfirmed = onVocabularyConfirmed,
                                     onConfirmationPending = onConfirmationPending,
                                     onDiagnosticEvent = onDiagnosticEvent,
                                     onDebugRecognition = onDebugRecognition,
@@ -824,7 +829,7 @@ private fun analyzeDiscoveryFrame(
     discoveryGate: DiscoveryGate,
     mlDiagnosticsEnabled: Boolean,
     onMlUnavailable: () -> Unit,
-    onWordCollected: (DiscoveredWord) -> Unit,
+    onVocabularyConfirmed: (VocabularyMatch, Float) -> Unit,
     onConfirmationPending: (PendingDiscoveryConfirmation) -> Unit,
     onDiagnosticEvent: (DiscoveryDiagnosticEvent) -> Unit,
     onDebugRecognition: (String?) -> Unit,
@@ -979,7 +984,7 @@ private fun analyzeDiscoveryFrame(
 
             if (decision.status == DiscoveryDecisionStatus.Accepted && decision.match != null) {
                 if (pendingConfirmation == null) {
-                    onWordCollected(decision.match.toDiscoveredWord(System.currentTimeMillis()))
+                    onVocabularyConfirmed(decision.match, decision.confidence)
                 } else {
                     onConfirmationPending(pendingConfirmation)
                 }

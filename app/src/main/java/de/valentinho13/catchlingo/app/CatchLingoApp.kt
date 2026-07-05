@@ -30,13 +30,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import de.valentinho13.catchlingo.data.DiscoveryRepository
+import androidx.lifecycle.viewmodel.compose.viewModel
 import de.valentinho13.catchlingo.designsystem.CatchLingoColor
 import de.valentinho13.catchlingo.designsystem.CatchLingoMotion
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoBottomBar
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoNavItem
 import de.valentinho13.catchlingo.designsystem.components.CatchLingoTopBar
 import de.valentinho13.catchlingo.feature.dictionary.DictionaryScreen
+import de.valentinho13.catchlingo.feature.dictionary.DictionaryViewModel
 import de.valentinho13.catchlingo.feature.discover.DiscoveryDiagnosticsRepository
 import de.valentinho13.catchlingo.feature.discover.DiscoverScreen
 import de.valentinho13.catchlingo.feature.review.ReviewScreen
@@ -46,16 +47,17 @@ import kotlinx.coroutines.launch
 @Composable
 fun CatchLingoApp() {
     val context = LocalContext.current
-    val discoveryRepository = remember {
-        DiscoveryRepository(context.applicationContext)
+    val dictionaryViewModelFactory = remember(context) {
+        DictionaryViewModel.factory(context.applicationContext)
     }
+    val dictionaryViewModel: DictionaryViewModel = viewModel(factory = dictionaryViewModelFactory)
     val diagnosticsRepository = remember {
         DiscoveryDiagnosticsRepository(context.applicationContext)
     }
     val diagnosticsExportEnabled = remember(context) {
         context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
     }
-    val discoveredWords by discoveryRepository.words.collectAsState()
+    val discoveredWords by dictionaryViewModel.words.collectAsState()
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var exploreFullScreen by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -144,13 +146,7 @@ fun CatchLingoApp() {
                         exploreFullScreen = exploreFullScreen,
                         onStartExplore = { exploreFullScreen = true },
                         onLeaveExplore = { exploreFullScreen = false },
-                        onWordCollected = { word ->
-                            if (discoveryRepository.collectWord(word)) {
-                                true
-                            } else {
-                                false
-                            }
-                        },
+                        onVocabularyConfirmed = dictionaryViewModel::confirm,
                         onFeedback = showFeedback,
                     )
 
