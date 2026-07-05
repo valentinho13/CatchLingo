@@ -13,3 +13,16 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# IDE / local project state
+.idea/
+.kotlin/
+
+# Local Claude settings
+.claude/settings.local.json
+
+# Local verification artifacts
+screenshots/
+
+# Local ADB helper state
+scripts/.last_adb_port
