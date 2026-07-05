@@ -1,19 +1,22 @@
 *.iml
 .gradle
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
 .DS_Store
 /build
 /captures
 .externalNativeBuild
 .cxx
 local.properties
+
+# IDE / local project state
 .idea/
-scripts/.last_adb_port
 .kotlin/
-screenshots/verification/
+
+# Local Claude settings
+.claude/settings.local.json
+
+# Local verification artifacts
+screenshots/
+
+# Local ADB helper state
+scripts/.last_adb_port
