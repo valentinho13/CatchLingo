@@ -1,8 +1,9 @@
 # CatchLingo — Subagent-Setup (Review-Bundle)
 
-**NEU GENERIERT: 2026-07-05 09:29 (+0200)** — spiegelt den Stand **nach** den 7 Nachschärfungen (Ziel 9,5+).
-Ersetzt die vorherige Fassung (9,1/9,2-Stand). Wortgetreuer Inhalt aller relevanten Dateien, damit ein
-externer Reviewer (GPT/Codex) den aktuellen Stand prüfen kann, ohne das Repo zu öffnen.
+**NEU GENERIERT: 2026-07-05 09:49 (+0200)** — spiegelt den Stand **nach** den 7 Nachschärfungen **plus
+Katzen-Canon** (`design-guardian` verweist jetzt auf `docs/design/cat_character_sheet.md`). Wortgetreuer
+Inhalt aller relevanten Dateien, damit ein externer Reviewer (GPT/Codex) den aktuellen Stand prüfen kann,
+ohne das Repo zu öffnen.
 
 - Repo: `C:\CatchLingo` (native Android, Kotlin + Jetpack Compose)
 - Setup: 6 Opus-Subagents unter `.claude/agents/`, je in 8-Sektionen-Struktur
@@ -22,11 +23,13 @@ externer Reviewer (GPT/Codex) den aktuellen Stand prüfen kann, ohne das Repo zu
 | `docs/motion/MOTION_GUIDELINES.md` | ✅ vorhanden (aus Archiv kopiert, echte 37-KB-Spec) |
 | `docs/design/app_icon_reference.jpg` | ✅ vorhanden (aus Archiv) |
 | `docs/design/catchlingo_ui_vision_v1.png` | ✅ vorhanden (aus Archiv) |
-| `docs/design/cat_character_sheet.png` | ❌ **FEHLT** (existiert nirgends; aspirationaler Zielzustand) |
+| `docs/design/cat_character_sheet.md` | ✅ vorhanden (textuelle Pflichtreferenz für die Katze) |
+| `docs/design/cat_character_sheet.png` | ❌ **FEHLT** (existiert nirgends; aspirationaler visueller Zielzustand) |
 
-> **Wichtig:** Weil `docs/design/cat_character_sheet.png` fehlt, bleiben **Katzen-Canon-Reviews des
-> `design-guardian` formal „Drift-Risiko"** — es gibt keine definitive „on-canon"-Prüfung, bis das
-> Character-Sheet erstellt ist. Das ist bewusst so verankert, kein Versehen und kein Fake.
+> **Wichtig (differenziert):** `docs/design/cat_character_sheet.md` ist jetzt vorhanden → der `design-guardian`
+> kann den Katzen-Canon **textuell prüfen**. Weil aber `docs/design/cat_character_sheet.png` weiterhin fehlt,
+> bleibt die **visuelle Canon eingeschränkt** — keine definitive „visuell on-canon"-Aussage, bis das PNG existiert.
+> Das ist bewusst so verankert, kein Versehen und kein Fake.
 
 **Bewertungsraster (je Agent):** klare Zuständigkeit · keine Überschneidung · konkrete CatchLingo-Bindung ·
 technische Erdung · knappes Rückgabeformat · restriktive Tools · klare Anti-Ziele · keine Fake-Features/-Daten/-ML.
@@ -40,6 +43,7 @@ technische Erdung · knappes Rückgabeformat · restriktive Tools · klare Anti-
 6. `.claude/agents/qa-verifier.md`
 7. `.claude/agents/README.md`
 8. `CLAUDE.md`
+9. `docs/design/cat_character_sheet.md`
 
 ---
 
@@ -337,11 +341,15 @@ Bei Konflikt hat die **Designvision Vorrang vor Technik; Konsistenz schlägt Kre
 - **Erwartete Referenz-Assets in `docs/design/` – Zielbild, nicht Inspiration.** Prüfe zuerst, ob sie existieren:
   - `app_icon_reference.jpg` — vorhanden (Marken-Katze/Icon).
   - `catchlingo_ui_vision_v1.png` — vorhanden (Aufbau/Stimmung der Screens).
-  - `cat_character_sheet.png` — **Zielzustand, sobald vorhanden** (Quelle der Wahrheit für die Katze). Fehlt aktuell.
+  - `cat_character_sheet.md` — **textuelle Pflichtreferenz für die Katze** (Rolle, Ausdruck, Silhouette, Haltungen, No-Gos, Loading-/„nichts erkannt"-Zustand, Review-Checkliste). Lies sie vor jedem Katzen-Urteil.
+  - `cat_character_sheet.png` — **gewünschter visueller Zielzustand** (fehlt aktuell).
 - **Asset-Erdung ist Pflicht vor dem Urteil:** Fehlt ein erwartetes Asset, markiere das Review als **Drift-Risiko**
   und empfiehl zuerst Asset-Erdung – reviewe nie „aus Erinnerung" gegen ein Bild, das du nicht gesehen hast.
-- **Fehlt `cat_character_sheet.png` speziell:** gib **keine** definitive „on-canon"-Aussage zur Katze ab; kennzeichne
-  das Katzen-Urteil ausdrücklich als Drift-Risiko bis das Character-Sheet vorliegt.
+- **Katzen-Canon differenziert prüfen** (nicht mehr pauschal „volles Drift-Risiko" nur wegen fehlendem PNG):
+  - `cat_character_sheet.md` vorhanden → Katzen-Canon **textuell prüfbar** (gegen die Checkliste im Sheet).
+  - `cat_character_sheet.png` fehlt → **visuelle Canon bleibt eingeschränkt**: keine definitive „visuell on-canon"-Aussage;
+    markiere die visuelle Prüfung ausdrücklich als eingeschränkt, bis das PNG vorliegt.
+  - Fehlt **auch** die `.md`, gilt weiterhin volles Katzen-Drift-Risiko.
 - **Stil:** warm, cream/grün/amber, organische Formen, weiche Karten, viel Weißraum, Storybook-Illustration.
 - **Maskottchen-Canon:** Die Katze **ist** eine echte orange Tabby, aus Versehen in der App gelandet – sie
   performt nie, lehrt nie, posiert nie fürs Publikum. Silhouetten-Guardrail (ohne Accessoire sofort erkennbar);
@@ -369,7 +377,7 @@ Bei Konflikt hat die **Designvision Vorrang vor Technik; Konsistenz schlägt Kre
 
 ## Qualitätscheck vor Abschluss
 - [ ] Referenz-Assets vorher auf Existenz geprüft; fehlende → Review als Drift-Risiko markiert (kein Urteil aus Erinnerung)?
-- [ ] An den echten Referenz-Assets gemessen; Katzen-Urteil nur definitiv, wenn `cat_character_sheet.png` vorliegt?
+- [ ] Katzen-Canon gegen `cat_character_sheet.md` geprüft; visuelle Canon als eingeschränkt markiert, solange `.png` fehlt?
 - [ ] Anti-Scanner / keine laute UI / ehrliche Empty States geprüft?
 - [ ] Katze on-canon (kein vermenschlichtes Performen)?
 - [ ] Rückgabe ist Review-Liste mit Fixes – kein Code geändert, kein Umbauauftrag?
@@ -573,4 +581,84 @@ Sechs Opus-Subagents unter `.claude/agents/` — Zuständigkeiten, Routing-Tabel
 - **Keine Flutter-Annahmen.** Dieses Repo ist Kotlin/Compose.
 - **Keine großen Architekturänderungen ohne knappe Begründung.** Kein Commit/Push ohne Auftrag.
 - **Designvision hat Vorrang vor Technik; Konsistenz schlägt Kreativität.**
+```
+
+---
+
+## 9. `docs/design/cat_character_sheet.md`
+
+```markdown
+# CatchLingo — Katzen-Canon (textuelles Character-Sheet)
+
+> **Status:** Textuelle **Pflichtreferenz** für die CatchLingo-Katze, solange kein echtes
+> `docs/design/cat_character_sheet.png` existiert. Dieses Dokument **ersetzt keine visuelle Referenz** –
+> es macht den Canon textuell prüfbar. Solange das PNG fehlt, bleibt die *visuelle* Canon **eingeschränkt**.
+>
+> Verbindliche Ergänzung zu den Referenz-Assets `docs/design/app_icon_reference.jpg` und
+> `docs/design/catchlingo_ui_vision_v1.png`. Prüfmaßstab für `design-guardian`.
+
+## Rolle der Katze
+- Eine **echte orange Tabby-Hauskatze** – kein Logo, kein Maskottchen, das eine Katze spielt.
+- Wirkt, als sei sie **aus Versehen in der App gelandet**; die App hat die Katze adoptiert, nicht umgekehrt.
+- **Kein Lehrer, kein Coach, kein Performer.** Sie erklärt nichts, verkauft nichts und motiviert nicht wie eine Gamification-Figur.
+- **Zielgefühl:** warm, leicht absurd, liebenswert – aber **nicht kitschig**. Ziel-Reaktion: *„I absolutely love this idiot."*
+
+## Persönlichkeit / Ausdruck
+- **Blank-Stare ist die Signatur** (der wiederverwendbare One-Brain-Cell-Leerblick).
+- Neugierig, leicht überfordert, ruhig, manchmal ratlos.
+- **Keine übertriebenen Emotionen**, keine menschliche Mimik.
+- Kein Jubeln, kein Zeigen, kein „ich habe dir etwas beigebracht"-Ausdruck.
+- Emotion kommt aus Haltung, Blick, Ohrenstellung, Körpersprache und Kontext – nicht aus Cartoon-Gesichtern.
+- Leichte Asymmetrie/Imperfektion ist **erwünscht** (macht sie lebendig statt Firmenlogo).
+
+## Silhouette-Guardrails
+- Als **Katze sofort erkennbar – auch ohne jedes Accessoire** (Silhouetten-Guardrail).
+- Natürliche Körperform; glaubhafte Katzenanatomie.
+- **Keine humanoiden Proportionen.**
+- **Keine aufrechte Lehrer-/Maskottchenhaltung als Standard.**
+- Runde, weiche, organische Formensprache passend zur Field-Journal-Ästhetik (warm, cream/grün/amber, Storybook).
+
+## Erlaubte Haltungen
+- Sitzen.
+- Liegen.
+- Halb eingerollt.
+- Neugierig auf ein Objekt schauen.
+- Neben einer Karte oder einem Fund auftauchen.
+- Vorsichtig an etwas schnuppern.
+- Im Loading-Zustand leer in die Gegend starren.
+- (Offen lassen: natürliche, entspannte Ruhehaltungen einer echten Hauskatze – nicht über-kanonisieren.)
+
+## Verbotene Darstellungen / No-Gos
+- Kleidung oder Accessoires als **Identitätskrücke** (permanente Accessoires generell verboten).
+- Humanoide Gestik.
+- Daumen hoch.
+- Zeigen mit der Pfote wie ein Lehrer.
+- Jubelpose.
+- Pokémon-/Duolingo-/Mascot-Performance.
+- Übertriebene Niedlichkeit / Riesen-Babyaugen.
+- Aggressive Cartoon-Mimik.
+- Tech-HUD-/Scanner-Kontext.
+- Katze als „Belohnungsmaschine".
+
+## Loading-/Warten-Zustand
+- **Blank-Stare-Katze.**
+- Ruhig, nicht nervös; keine hektische Animation.
+- Kein „wir scannen gerade"-Gefühl.
+- Stimmung: *„die Katze wartet mit dir und versteht die Welt auch nicht ganz."*
+
+## „Nichts erkannt"-Zustand
+- Ehrlich, ruhig, **nicht strafend**.
+- Katze darf ratlos wirken.
+- **Keine Schuldzuweisung** an den Nutzer.
+- **Keine Fake-Kandidaten**, kein überdramatisches Scheitern.
+
+## Review-Checkliste für `design-guardian`
+- [ ] Wirkt die Katze wie eine echte orange Tabby?
+- [ ] Würde sie auch ohne Accessoires erkennbar bleiben?
+- [ ] Ist sie ruhig und nicht performativ?
+- [ ] Vermeidet sie Lehrer-/Coach-/Mascot-Verhalten?
+- [ ] Passt sie zur warmen Field-Journal-Ästhetik?
+- [ ] Keine Scanner-, HUD-, Pokémon- oder Duolingo-Assoziation?
+- [ ] Ist der Blank-Stare respektiert?
+- [ ] Ist ein eventuell fehlendes PNG als **visuelle Einschränkung** markiert?
 ```
