@@ -3,6 +3,7 @@ package de.valentinho13.catchlingo.dictionary.data.room
 import androidx.room.withTransaction
 import de.valentinho13.catchlingo.core.time.TimeProvider
 import de.valentinho13.catchlingo.dictionary.data.DictionaryRepository
+import de.valentinho13.catchlingo.dictionary.data.ConfirmResult
 import de.valentinho13.catchlingo.dictionary.data.room.entity.CatchEventEntity
 import de.valentinho13.catchlingo.dictionary.data.room.entity.ReviewStateEntity
 import de.valentinho13.catchlingo.dictionary.data.room.entity.WordEntity
@@ -27,7 +28,7 @@ class RoomDictionaryRepository(
 
     private val dao = db.dictionaryDao()
 
-    override suspend fun confirm(candidate: Candidate, targetLanguage: String): Word =
+    override suspend fun confirm(candidate: Candidate, targetLanguage: String): ConfirmResult =
         db.withTransaction {
             val now = time.nowMillis()
             val existing = dao.findWord(candidate.normalizedLabel, targetLanguage)
@@ -56,7 +57,7 @@ class RoomDictionaryRepository(
                     status = CatchStatus.CONFIRMED.name,
                 ),
             )
-            word
+            ConfirmResult(word = word, isNew = existing == null)
         }
 
     override suspend fun reject(candidate: Candidate) {

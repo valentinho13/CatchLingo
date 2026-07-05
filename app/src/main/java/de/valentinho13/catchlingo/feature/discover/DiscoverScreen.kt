@@ -66,6 +66,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -127,6 +128,8 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 @Composable
 fun DiscoverScreen(
@@ -136,7 +139,7 @@ fun DiscoverScreen(
     exploreState: DiscoverUiState = PreviewDiscoverState,
     onStartExplore: () -> Unit = {},
     onLeaveExplore: () -> Unit = {},
-    onVocabularyConfirmed: (VocabularyMatch, Float) -> Boolean = { _, _ -> false },
+    onVocabularyConfirmed: suspend (VocabularyMatch, Float) -> Boolean = { _, _ -> false },
     onFeedback: (String) -> Unit = {},
 ) {
     if (exploreFullScreen) {
@@ -144,6 +147,7 @@ fun DiscoverScreen(
             state = exploreState,
             onLeaveExplore = onLeaveExplore,
             onVocabularyConfirmed = onVocabularyConfirmed,
+            onFeedback = onFeedback,
             modifier = modifier,
         )
     } else {
@@ -283,12 +287,14 @@ private fun WarmPreviewCard(onPronounceClick: () -> Unit) {
 private fun ExploreScreen(
     state: DiscoverUiState,
     onLeaveExplore: () -> Unit,
-    onVocabularyConfirmed: (VocabularyMatch, Float) -> Boolean,
+    onVocabularyConfirmed: suspend (VocabularyMatch, Float) -> Boolean,
+    onFeedback: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val haptics = rememberCatchLingoHaptics()
+    val scope = rememberCoroutineScope()
     val diagnosticsRepository = remember(context) {
         DiscoveryDiagnosticsRepository(context.applicationContext)
     }
@@ -346,17 +352,25 @@ private fun ExploreScreen(
                 .firstOrNull { it.match.id == selectedMatch.id }
                 ?.confidence
                 ?: Float.NaN
-            if (onVocabularyConfirmed(selectedMatch, confidence)) {
-                // Neuer Catch hat Vorrang: gepufferte Confirmation verwerfen.
-                deferredConfirmation = null
-                haptics.catchHold()
-                magnetWord = word
-                caughtWord = null
-                catchVersion += 1
-            } else {
-                haptics.softTick()
-                alreadyKnownWord = word
-                alreadyKnownVersion += 1
+            scope.launch {
+                try {
+                    if (onVocabularyConfirmed(selectedMatch, confidence)) {
+                        // Neuer Catch hat Vorrang: gepufferte Confirmation verwerfen.
+                        deferredConfirmation = null
+                        haptics.catchHold()
+                        magnetWord = word
+                        caughtWord = null
+                        catchVersion += 1
+                    } else {
+                        haptics.softTick()
+                        alreadyKnownWord = word
+                        alreadyKnownVersion += 1
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    onFeedback("Fund konnte nicht gespeichert werden.")
+                }
             }
         }
     }
@@ -446,28 +460,36 @@ private fun ExploreScreen(
                     mlUnavailable = false
                     pendingConfirmation = null
                     val word = match.toDiscoveredWord(System.currentTimeMillis())
-                    if (onVocabularyConfirmed(match, confidence)) {
-                        // Neuer Catch hat Vorrang: gepufferte Confirmation verwerfen.
-                        deferredConfirmation = null
-                        haptics.catchHold()
-                        magnetWord = word
-                        caughtWord = null
-                        catchVersion += 1
-                    } else {
-                        // Während der Haltephase keine zweite Card und kein Tick (A6);
-                        // das Diagnostik-Event bleibt unverändert bestehen.
-                        if (magnetWord == null) {
-                            haptics.softTick()
-                            alreadyKnownWord = word
-                            alreadyKnownVersion += 1
+                    scope.launch {
+                        try {
+                            if (onVocabularyConfirmed(match, confidence)) {
+                                // Neuer Catch hat Vorrang: gepufferte Confirmation verwerfen.
+                                deferredConfirmation = null
+                                haptics.catchHold()
+                                magnetWord = word
+                                caughtWord = null
+                                catchVersion += 1
+                            } else {
+                                // Während der Haltephase keine zweite Card und kein Tick (A6);
+                                // das Diagnostik-Event bleibt unverändert bestehen.
+                                if (magnetWord == null) {
+                                    haptics.softTick()
+                                    alreadyKnownWord = word
+                                    alreadyKnownVersion += 1
+                                }
+                                diagnosticsRepository.addEvent(
+                                    buildAlreadyKnownDiagnosticEvent(
+                                        timestampMillis = System.currentTimeMillis(),
+                                        word = word,
+                                        reasons = listOf("repositoryDuplicate"),
+                                    ),
+                                )
+                            }
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            onFeedback("Fund konnte nicht gespeichert werden.")
                         }
-                        diagnosticsRepository.addEvent(
-                            buildAlreadyKnownDiagnosticEvent(
-                                timestampMillis = System.currentTimeMillis(),
-                                word = word,
-                                reasons = listOf("repositoryDuplicate"),
-                            ),
-                        )
                     }
                 },
                 onConfirmationPending = { confirmation ->

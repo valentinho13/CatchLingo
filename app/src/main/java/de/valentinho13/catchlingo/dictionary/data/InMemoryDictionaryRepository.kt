@@ -37,7 +37,7 @@ class InMemoryDictionaryRepository(
     private var wordIdCounter = 0L
     private var eventIdCounter = 0L
 
-    override suspend fun confirm(candidate: Candidate, targetLanguage: String): Word = mutex.withLock {
+    override suspend fun confirm(candidate: Candidate, targetLanguage: String): ConfirmResult = mutex.withLock {
         val now = time.nowMillis()
         val current = state.value
         val existing = current.words.firstOrNull {
@@ -70,7 +70,7 @@ class InMemoryDictionaryRepository(
         } else {
             current.copy(events = current.events + event)
         }
-        word
+        ConfirmResult(word = word, isNew = existing == null)
     }
 
     override suspend fun reject(candidate: Candidate) = mutex.withLock {
